@@ -1,72 +1,23 @@
 const state = {
-  agents: [],
+  company: null,
+  products: [],
+  delivery: {},
+  promotions: [],
+  coupons: [],
   policies: [],
-  logs: [],
-  reports: [],
-  feedback: [],
-  currentReview: null,
-  currentReport: null
-};
-
-const sample = {
-  agent: {
-    name: "Finance Report Agent",
-    purpose: "Summarizes monthly sales, expenses, and vendor information",
-    department: "Finance",
-    owner: "Finance Manager",
-    tools: ["Finance System", "Email", "File Storage"],
-    dataAccess: ["Financial Records", "Confidential Documents", "Internal Business Data"],
-    riskCategory: "High",
-    businessImpact: "Financial impact",
-    notes: "Sample high-risk finance governance scenario."
-  },
-  policy: {
-    approvedActions: "Summarize monthly financial data\nPrepare internal financial reports",
-    approvalRequiredActions: "Export reports outside the company\nEmail financial reports to consultants\nShare vendor information externally",
-    prohibitedActions: "Modify financial records\nApprove payments\nSend reports externally without human review",
-    sensitiveDataRules: [
-      "Human review required for financial data",
-      "No credentials or secrets",
-      "No customer personal data in public AI tools"
-    ],
-    escalationContact: "Finance Manager",
-    reviewFrequency: "High-risk actions only"
-  },
-  action: {
-    actionTitle: "External Monthly Financial Report",
-    actionDescription: "The agent created a monthly financial summary and attempted to email it to an outside consultant.",
-    toolsUsed: ["Finance System", "Email"],
-    dataTouched: ["Financial data", "Confidential documents"],
-    intendedRecipient: "Consultant",
-    humanApprovalRequested: "No",
-    externalAction: "Yes",
-    businessImpact: "High",
-    outputSummary: "Monthly revenue, expenses, vendor names, and cash-flow summary",
-    additionalNotes: "Sensitive financial data was prepared for external sharing without required approval."
-  }
+  payments: [],
+  rules: [],
+  scenarios: [],
+  interactions: [],
+  metrics: { total: 0, compliant: 0, flagged: 0, blocked: 0, complianceRate: 100 },
+  ruleViolations: [],
+  activityFilter: "ALL",
+  expandedId: null,
+  dataTab: "products"
 };
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
-
-async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.error || `Request failed: ${response.status}`);
-  }
-  return data;
-}
-
-function showToast(message) {
-  const toast = $("#toast");
-  toast.textContent = message;
-  toast.classList.add("show");
-  window.setTimeout(() => toast.classList.remove("show"), 3200);
-}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -77,576 +28,416 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-function slug(value) {
-  return String(value || "unclear").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
-function badge(value) {
-  return `<span class="badge badge-${slug(value)}">${escapeHtml(value || "Pending")}</span>`;
-}
-
-function formatDate(value) {
-  if (!value) return "Not recorded";
-  return new Date(value).toLocaleString();
-}
-
-function collectChecked(form, groupName) {
-  return Array.from(form.querySelectorAll(`[data-checkbox-group="${groupName}"] input:checked`)).map((input) => input.value);
-}
-
-function setChecked(form, groupName, values) {
-  const selected = new Set(values || []);
-  form.querySelectorAll(`[data-checkbox-group="${groupName}"] input`).forEach((input) => {
-    input.checked = selected.has(input.value);
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    ...options
   });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `Request failed with status ${response.status}`);
+  return data;
 }
 
-function setRadio(form, name, value) {
-  form.querySelectorAll(`input[name="${name}"]`).forEach((input) => {
-    input.checked = input.value === value;
-  });
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function getFormData(form) {
-  return Object.fromEntries(new FormData(form).entries());
+function formatDate(value, includeTime = true) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown";
+  return date.toLocaleString([], includeTime
+    ? { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }
+    : { month: "short", day: "numeric", year: "numeric" });
 }
 
-function activeAgents() {
-  return state.agents.filter((agent) => agent.status !== "Inactive");
+function verdictClass(verdict) {
+  return String(verdict || "").toLowerCase();
 }
 
-function selectedAgentId() {
-  return $("#actionAgentSelect").value || $("#policyAgentSelect").value || activeAgents()[0]?.id;
+function badge(verdict) {
+  return `<span class="badge ${verdictClass(verdict)}">${escapeHtml(verdict)}</span>`;
 }
 
-async function loadAll() {
-  const [agents, policies, logs, reports, feedback] = await Promise.all([
-    api("/api/agents"),
-    api("/api/policies"),
-    api("/api/logs"),
-    api("/api/reports"),
-    api("/api/feedback")
-  ]);
-  state.agents = agents;
-  state.policies = policies;
-  state.logs = logs;
-  state.reports = reports;
-  state.feedback = feedback;
-  renderAll();
-}
-
-function renderAll() {
-  renderAgentSelects();
-  renderAgents();
-  renderPolicySummary();
-  renderDashboard();
-  renderApprovalQueue();
-  renderReports();
-  renderFeedback();
-}
-
-function renderAgentSelects() {
-  const options = activeAgents()
-    .map((agent) => `<option value="${escapeHtml(agent.id)}">${escapeHtml(agent.name)}</option>`)
-    .join("");
-  ["#policyAgentSelect", "#actionAgentSelect"].forEach((selector) => {
-    const select = $(selector);
-    const previous = select.value;
-    select.innerHTML = options || "<option value=\"\">No active agents</option>";
-    if (previous && activeAgents().some((agent) => agent.id === previous)) {
-      select.value = previous;
-    }
-  });
-}
-
-function renderAgents() {
-  const body = $("#agentsTableBody");
-  if (!state.agents.length) {
-    body.innerHTML = "<tr><td colspan=\"6\">No agents registered yet.</td></tr>";
-    return;
-  }
-  body.innerHTML = state.agents.map((agent) => `
-    <tr>
-      <td><strong>${escapeHtml(agent.name)}</strong></td>
-      <td>${escapeHtml(agent.owner)}</td>
-      <td>${escapeHtml(agent.department)}</td>
-      <td>${badge(agent.riskCategory)}</td>
-      <td>${badge(agent.status)}</td>
-      <td>
-        <button class="btn btn-secondary table-action" type="button" data-select-agent="${escapeHtml(agent.id)}">Select</button>
-        ${agent.status !== "Inactive" ? `<button class="btn btn-outline table-action" type="button" data-delete-agent="${escapeHtml(agent.id)}">Deactivate</button>` : ""}
-      </td>
-    </tr>
-  `).join("");
-}
-
-function renderPolicySummary() {
-  const agentId = $("#policyAgentSelect").value;
-  const agent = state.agents.find((item) => item.id === agentId);
-  const policy = state.policies.find((item) => item.agentId === agentId);
-  const summary = $("#policySummary");
-
-  if (!agent) {
-    summary.innerHTML = "Register an active agent before saving policy rules.";
-    return;
-  }
-
-  if (policy) {
-    const policyForm = $("#policyForm");
-    policyForm.approvedActions.value = policy.approvedActions || "";
-    policyForm.approvalRequiredActions.value = policy.approvalRequiredActions || "";
-    policyForm.prohibitedActions.value = policy.prohibitedActions || "";
-    policyForm.escalationContact.value = policy.escalationContact || "";
-    policyForm.reviewFrequency.value = policy.reviewFrequency || "Every action";
-    setChecked(policyForm, "sensitiveDataRules", policy.sensitiveDataRules || []);
-
-    summary.innerHTML = `
-      <p><strong>Agent:</strong> ${escapeHtml(agent.name)}</p>
-      <p><strong>Escalation contact:</strong> ${escapeHtml(policy.escalationContact)}</p>
-      <p><strong>Review frequency:</strong> ${escapeHtml(policy.reviewFrequency)}</p>
-      <p><strong>Approval rules:</strong> ${splitLines(policy.approvalRequiredActions).length}</p>
-      <p><strong>Prohibited rules:</strong> ${splitLines(policy.prohibitedActions).length}</p>
-    `;
-  } else {
-    $("#policyForm").reset();
-    $("#policyAgentSelect").value = agentId;
-    summary.innerHTML = `<p><strong>${escapeHtml(agent.name)}</strong> does not have a saved policy yet.</p>`;
-  }
-}
-
-function splitLines(text) {
-  return String(text || "").split(/\n|,/).map((item) => item.trim()).filter(Boolean);
-}
-
-function renderDashboard() {
-  const active = activeAgents();
-  const pending = state.logs.filter((log) => log.approvalRequired && log.decision === "Pending").length;
-  const high = state.logs.filter((log) => log.riskLevel === "High").length;
-  const critical = state.logs.filter((log) => log.riskLevel === "Critical").length;
-  const average = state.logs.length
-    ? Math.round(state.logs.reduce((sum, log) => sum + Number(log.riskScore || 0), 0) / state.logs.length)
-    : 0;
-
-  $("#metricAgents").textContent = active.length;
-  $("#metricPending").textContent = pending;
-  $("#metricHigh").textContent = high;
-  $("#metricCritical").textContent = critical;
-  $("#metricReports").textContent = state.reports.length;
-  $("#metricAverage").textContent = average;
-
-  const body = $("#recentActivityBody");
-  if (!state.logs.length) {
-    body.innerHTML = "<tr><td colspan=\"6\">No reviewed activity yet.</td></tr>";
-    return;
-  }
-  body.innerHTML = state.logs.slice(0, 8).map((log) => `
-    <tr>
-      <td>${escapeHtml(log.agentName)}</td>
-      <td>${escapeHtml(log.action?.actionTitle)}</td>
-      <td>${badge(log.riskLevel)}</td>
-      <td>${badge(log.policyStatus)}</td>
-      <td>${badge(log.decision || "Pending")}</td>
-      <td>${formatDate(log.createdAt)}</td>
-    </tr>
-  `).join("");
-}
-
-function renderApprovalQueue() {
-  const body = $("#approvalQueueBody");
-  const queue = state.logs.filter((log) => log.approvalRequired && log.decision === "Pending");
-  if (!queue.length) {
-    body.innerHTML = "<tr><td colspan=\"6\">No pending approvals.</td></tr>";
-    return;
-  }
-  body.innerHTML = queue.map((log) => `
-    <tr>
-      <td>${escapeHtml(log.agentName)}</td>
-      <td>${escapeHtml(log.action?.actionTitle)}</td>
-      <td>${badge(log.riskLevel)}</td>
-      <td>${badge(log.policyStatus)}</td>
-      <td>${formatDate(log.createdAt)}</td>
-      <td>
-        <button class="btn btn-success table-action" type="button" data-queue-decision="Approved" data-review-id="${escapeHtml(log.reviewId)}">Approve</button>
-        <button class="btn btn-danger table-action" type="button" data-queue-decision="Rejected" data-review-id="${escapeHtml(log.reviewId)}">Reject</button>
-        <button class="btn btn-warning table-action" type="button" data-queue-decision="Escalated" data-review-id="${escapeHtml(log.reviewId)}">Escalate</button>
-      </td>
-    </tr>
-  `).join("");
-}
-
-function renderReports() {
-  const body = $("#reportsTableBody");
-  if (!state.reports.length) {
-    state.currentReport = null;
-    $("#auditReportBox").textContent = "No audit reports have been generated yet.";
-    body.innerHTML = "<tr><td colspan=\"7\">No audit reports generated yet.</td></tr>";
-    return;
-  }
-
-  const refreshedCurrent = state.currentReport
-    ? state.reports.find((report) => report.id === state.currentReport.id)
-    : null;
-  state.currentReport = refreshedCurrent || state.reports[0];
-  $("#auditReportBox").textContent = state.currentReport.reportText;
-
-  body.innerHTML = state.reports.map((report) => `
-    <tr>
-      <td><strong>${escapeHtml(report.id)}</strong></td>
-      <td>${escapeHtml(report.agentName)}</td>
-      <td>${escapeHtml(report.actionTitle)}</td>
-      <td>${badge(report.riskLevel)}</td>
-      <td>${badge(report.finalDecision)}</td>
-      <td>${formatDate(report.updatedAt || report.createdAt)}</td>
-      <td><button class="btn btn-secondary table-action" type="button" data-open-report="${escapeHtml(report.id)}">View</button></td>
-    </tr>
-  `).join("");
-}
-
-function renderFeedback() {
-  const list = $("#feedbackList");
-  if (!state.feedback.length) {
-    list.innerHTML = "<div class=\"empty-state\">No feedback submitted yet.</div>";
-    return;
-  }
-
-  list.innerHTML = state.feedback.map((item) => `
-    <article class="feedback-item">
-      <div>
-        <strong>${"&#9733;".repeat(Math.max(1, Math.min(5, Number(item.rating) || 1)))}</strong>
-        <span>${formatDate(item.createdAt)}</span>
-      </div>
-      <p>${escapeHtml(item.comment)}</p>
-      <small>Report: ${escapeHtml(item.reportId || "General MVP feedback")}</small>
+function metricCards(metrics) {
+  const rateStatus = metrics.complianceRate >= 80 ? "Healthy" : metrics.complianceRate >= 60 ? "Needs attention" : "Critical attention";
+  return [
+    { label: "Total interactions", value: metrics.total, note: "All monitored requests", className: "" },
+    { label: "Compliant", value: metrics.compliant, note: "PASS outcomes", className: "pass" },
+    { label: "Flagged", value: metrics.flagged, note: "WARNING outcomes", className: "warning" },
+    { label: "Blocked", value: metrics.blocked, note: "FAIL outcomes", className: "fail" },
+    { label: "Compliance rate", value: `${metrics.complianceRate}%`, note: rateStatus, className: "rate" }
+  ].map((item) => `
+    <article class="metric-card ${item.className}">
+      <span>${item.label}</span>
+      <strong>${item.value}</strong>
+      <small>${item.note}</small>
     </article>
   `).join("");
 }
 
-async function submitAgent(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const payload = {
-    ...getFormData(form),
-    tools: collectChecked(form, "tools"),
-    dataAccess: collectChecked(form, "dataAccess")
-  };
-  try {
-    await api("/api/agents", { method: "POST", body: JSON.stringify(payload) });
-    form.reset();
-    await loadAll();
-    showToast("Agent registered.");
-  } catch (error) {
-    showToast(error.message);
+function renderMetrics() {
+  $("#monitorMetrics").innerHTML = metricCards(state.metrics);
+  $("#auditMetrics").innerHTML = metricCards(state.metrics);
+  $("#navActivityCount").textContent = state.metrics.total;
+  $("#attentionCount").textContent = state.metrics.flagged + state.metrics.blocked;
+  $("#filterAll").textContent = state.metrics.total;
+  $("#filterPass").textContent = state.metrics.compliant;
+  $("#filterWarning").textContent = state.metrics.flagged;
+  $("#filterFail").textContent = state.metrics.blocked;
+
+  let briefing = "No interactions have been reviewed. TRUST OS is active and ready.";
+  if (state.metrics.total && state.metrics.flagged + state.metrics.blocked === 0) {
+    briefing = `All ${state.metrics.total} monitored interactions are compliant. No action is currently required.`;
+  } else if (state.metrics.total) {
+    briefing = `${state.metrics.flagged} interaction${state.metrics.flagged === 1 ? "" : "s"} flagged and ${state.metrics.blocked} blocked. Review the evidence before ShopBot policy changes are approved.`;
   }
+  $("#briefingText").textContent = briefing;
 }
 
-async function submitPolicy(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const payload = {
-    ...getFormData(form),
-    sensitiveDataRules: collectChecked(form, "sensitiveDataRules")
-  };
-  try {
-    await api("/api/policies", { method: "POST", body: JSON.stringify(payload) });
-    await loadAll();
-    $("#policyAgentSelect").value = payload.agentId;
-    renderPolicySummary();
-    showToast("Policy saved.");
-  } catch (error) {
-    showToast(error.message);
-  }
+function renderScenarioOptions() {
+  const category = $("#scenarioCategory").value;
+  const matching = state.scenarios.filter((scenario) => scenario.verdict === category);
+  $("#scenarioSelect").innerHTML = matching.map((scenario) => `
+    <option value="${escapeHtml(scenario.id)}">${escapeHtml(scenario.label)}</option>
+  `).join("");
+  if (matching[0]) setQueryFromScenario(matching[0].id);
 }
 
-async function submitAction(event) {
+function setQueryFromScenario(id) {
+  const scenario = state.scenarios.find((item) => item.id === id);
+  if (!scenario) return;
+  $("#queryInput").value = scenario.query;
+  updateQueryCount();
+}
+
+function updateQueryCount() {
+  $("#queryCount").textContent = `${$("#queryInput").value.length} / 1000`;
+}
+
+function renderResult(interaction) {
+  if (!interaction) return;
+  $("#resultEmpty").classList.add("hidden");
+  $("#resultContent").classList.remove("hidden");
+  const rules = interaction.rulesViolated?.length
+    ? interaction.rulesViolated.map((rule) => `<span class="rule-tag">Rule ${rule.id}: ${escapeHtml(rule.title)}</span>`).join("")
+    : '<span class="rule-tag">No rules violated</span>';
+  const checks = (interaction.checks || []).map((check) => `
+    <div class="check-item ${check.passed ? "" : "failed"}">
+      <span class="check-status">${check.passed ? "OK" : "!"}</span>
+      <strong>${escapeHtml(check.name)}</strong>
+      <small>${escapeHtml(check.detail)}</small>
+    </div>
+  `).join("");
+
+  $("#resultContent").innerHTML = `
+    <div class="verdict-header">
+      ${badge(interaction.verdict)}
+      <div><h3>${escapeHtml(interaction.intent)}</h3><p>${formatDate(interaction.createdAt)}</p></div>
+      <div class="risk-label">Risk level<strong>${escapeHtml(interaction.riskLevel)}</strong></div>
+    </div>
+    <div class="result-summary-grid">
+      <div class="summary-field"><span>Customer intent</span><strong>${escapeHtml(interaction.intent)}</strong></div>
+      <div class="summary-field"><span>AI response quality</span><strong>${escapeHtml(interaction.responseQuality)}</strong></div>
+    </div>
+    <div class="transcript-block"><span>Customer query</span><p>${escapeHtml(interaction.query)}</p></div>
+    <div class="transcript-block shopbot"><span>ShopBot response</span><p>${escapeHtml(interaction.shopbotResponse)}</p></div>
+    <div class="explanation-block"><span>TRUST OS explanation</span><p>${escapeHtml(interaction.explanation)}</p></div>
+    <div class="rules-block"><span>Rules triggered</span><div class="rule-tags">${rules}</div></div>
+    <div class="checks-block"><span>Seven compliance checks</span><div class="check-list">${checks}</div></div>
+    <div class="action-line"><strong>Action taken:</strong> ${escapeHtml(interaction.action)}</div>
+  `;
+}
+
+function emptyRow(columns, message) {
+  return `<tr class="empty-row"><td colspan="${columns}">${escapeHtml(message)}</td></tr>`;
+}
+
+function renderRecent() {
+  const recent = state.interactions.slice(0, 5);
+  $("#recentTableBody").innerHTML = recent.length ? recent.map((item) => `
+    <tr>
+      <td>${escapeHtml(formatDate(item.createdAt))}</td>
+      <td>${escapeHtml(item.requester)}</td>
+      <td class="query-cell" title="${escapeHtml(item.query)}">${escapeHtml(item.query)}</td>
+      <td>${badge(item.verdict)}</td>
+      <td>${escapeHtml(item.riskLevel)}</td>
+      <td>${escapeHtml(item.action)}</td>
+    </tr>
+  `).join("") : emptyRow(6, "No monitored interactions yet.");
+}
+
+function detailDrawer(item) {
+  const rules = item.rulesViolated?.length
+    ? item.rulesViolated.map((rule) => `Rule ${rule.id}: ${rule.title}`).join("; ")
+    : "None";
+  return `
+    <tr class="detail-row">
+      <td colspan="6">
+        <div class="detail-drawer">
+          <div><h3>Customer query</h3><p>${escapeHtml(item.query)}</p></div>
+          <div><h3>ShopBot response</h3><p>${escapeHtml(item.shopbotResponse)}</p></div>
+          <div><h3>TRUST OS explanation</h3><p>${escapeHtml(item.explanation)}</p></div>
+          <div><h3>Rules triggered</h3><p>${escapeHtml(rules)}</p></div>
+          <div class="full-span"><h3>Action taken</h3><p>${escapeHtml(item.action)}</p></div>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function renderActivity() {
+  const filtered = state.activityFilter === "ALL"
+    ? state.interactions
+    : state.interactions.filter((item) => item.verdict === state.activityFilter);
+  if (!filtered.length) {
+    $("#activityTableBody").innerHTML = emptyRow(6, `No ${state.activityFilter === "ALL" ? "" : state.activityFilter.toLowerCase()} interactions found.`);
+    return;
+  }
+  $("#activityTableBody").innerHTML = filtered.map((item) => `
+    <tr>
+      <td>${escapeHtml(formatDate(item.createdAt))}</td>
+      <td>${escapeHtml(item.requester)}</td>
+      <td class="query-cell" title="${escapeHtml(item.query)}">${escapeHtml(item.query)}</td>
+      <td>${badge(item.verdict)}</td>
+      <td>${escapeHtml(item.riskLevel)}</td>
+      <td><button class="table-action" type="button" data-expand-id="${escapeHtml(item.id)}">${state.expandedId === item.id ? "Close" : "View"}</button></td>
+    </tr>
+    ${state.expandedId === item.id ? detailDrawer(item) : ""}
+  `).join("");
+}
+
+function renderAudit() {
+  const total = Math.max(state.metrics.total, 1);
+  const bars = [
+    { label: "PASS", value: state.metrics.compliant, className: "pass" },
+    { label: "WARNING", value: state.metrics.flagged, className: "warning" },
+    { label: "FAIL", value: state.metrics.blocked, className: "fail" }
+  ];
+  $("#verdictChart").innerHTML = bars.map((bar) => `
+    <div class="chart-row">
+      <span class="chart-label">${bar.label}</span>
+      <div class="chart-track"><div class="chart-fill ${bar.className}" style="width:${Math.round((bar.value / total) * 100)}%"></div></div>
+      <span class="chart-value">${bar.value}</span>
+    </div>
+  `).join("");
+
+  const triggered = state.ruleViolations.filter((rule) => rule.count > 0).slice(0, 6);
+  const maxCount = Math.max(...triggered.map((rule) => rule.count), 1);
+  $("#ruleChart").innerHTML = triggered.length ? triggered.map((rule) => `
+    <div class="rule-row">
+      <span title="Rule ${rule.id}: ${escapeHtml(rule.title)}">Rule ${rule.id}: ${escapeHtml(rule.title)}</span>
+      <div class="rule-mini-track"><div class="rule-mini-fill" style="width:${Math.round((rule.count / maxCount) * 100)}%"></div></div>
+      <strong>${rule.count}</strong>
+    </div>
+  `).join("") : '<div class="result-empty"><p>No rule violations have been recorded.</p></div>';
+
+  $("#auditTableBody").innerHTML = state.interactions.length ? state.interactions.map((item) => {
+    const rules = item.rulesViolated?.length ? item.rulesViolated.map((rule) => rule.id).join(", ") : "None";
+    return `
+      <tr>
+        <td>${escapeHtml(item.id)}</td>
+        <td>${escapeHtml(formatDate(item.createdAt, false))}</td>
+        <td class="query-cell" title="${escapeHtml(item.query)}">${escapeHtml(item.query)}</td>
+        <td>${badge(item.verdict)}</td>
+        <td>${escapeHtml(rules)}</td>
+        <td>${escapeHtml(item.action)}</td>
+      </tr>
+    `;
+  }).join("") : emptyRow(6, "Run a compliance check to create audit evidence.");
+}
+
+function renderRules() {
+  $("#rulesTableBody").innerHTML = state.rules.map((rule) => `
+    <tr>
+      <td><strong>${String(rule.id).padStart(2, "0")}</strong></td>
+      <td>${escapeHtml(rule.title)}</td>
+      <td>${escapeHtml(rule.description)}</td>
+      <td><span class="system-state"><span class="status-dot"></span> Active</span></td>
+    </tr>
+  `).join("");
+  renderOfficialData();
+}
+
+function renderOfficialData() {
+  let items = [];
+  if (state.dataTab === "products") {
+    items = state.products.map((product) => ({
+      title: product.name,
+      value: `$${Number(product.price).toFixed(2)} | ${product.stock}`,
+      detail: `${product.features.join(", ")}. ${product.rating}.`
+    }));
+  } else if (state.dataTab === "policies") {
+    items = [
+      ...state.policies.map((policy) => ({ title: policy.name, value: "Confirmed policy", detail: policy.detail })),
+      { title: "Standard delivery", value: state.delivery.time || state.delivery.standard?.time, detail: state.delivery.standard?.cost || "" },
+      { title: "Express delivery", value: state.delivery.express?.time, detail: state.delivery.express?.cost }
+    ];
+  } else {
+    items = [
+      ...state.promotions.map((offer) => ({ title: offer.code, value: offer.value, detail: offer.condition })),
+      ...state.coupons.map((offer) => ({ title: offer.code, value: offer.value, detail: offer.condition }))
+    ];
+  }
+  $("#officialDataContent").innerHTML = `<div class="data-grid">${items.map((item) => `
+    <article class="data-item">
+      <h3>${escapeHtml(item.title)}</h3>
+      <p class="data-value">${escapeHtml(item.value)}</p>
+      <p>${escapeHtml(item.detail)}</p>
+    </article>
+  `).join("")}</div>`;
+}
+
+function renderAll() {
+  renderMetrics();
+  renderRecent();
+  renderActivity();
+  renderAudit();
+  renderRules();
+}
+
+function pipelineState(activeStep, completeSteps = []) {
+  $$(".pipeline-step").forEach((step) => {
+    const name = step.dataset.step;
+    step.classList.toggle("active", name === activeStep);
+    step.classList.toggle("complete", completeSteps.includes(name));
+  });
+}
+
+async function runComplianceCheck(event) {
   event.preventDefault();
-  const form = event.currentTarget;
-  const payload = {
-    ...getFormData(form),
-    toolsUsed: collectChecked(form, "toolsUsed"),
-    dataTouched: collectChecked(form, "dataTouched")
-  };
-  setLoading(true);
+  const query = $("#queryInput").value.trim();
+  if (!query) {
+    showToast("Enter a customer query first.");
+    return;
+  }
+
+  const button = $("#runButton");
+  button.disabled = true;
+  button.innerHTML = "Analyzing interaction...";
+  pipelineState("shopbot");
+
   try {
-    const review = await api("/api/review-action", { method: "POST", body: JSON.stringify(payload) });
-    state.currentReview = review;
-    renderReview(review);
-    await loadAll();
-    showToast("Risk review completed.");
+    const request = api("/api/interactions", {
+      method: "POST",
+      body: JSON.stringify({ query, requester: $("#requesterInput").value.trim() || "Demo Customer" })
+    });
+    await delay(240);
+    pipelineState("trust", ["shopbot"]);
+    await delay(300);
+    const data = await request;
+    pipelineState("log", ["shopbot", "trust"]);
+    await delay(180);
+    pipelineState(null, ["shopbot", "trust", "log"]);
+
+    state.interactions.unshift(data.interaction);
+    state.metrics = data.metrics;
+    state.ruleViolations = data.ruleViolations;
+    state.expandedId = null;
+    renderResult(data.interaction);
+    renderAll();
+    showToast(`${data.interaction.verdict} verdict recorded in the audit log.`);
   } catch (error) {
+    pipelineState(null);
     showToast(error.message);
   } finally {
-    setLoading(false);
+    button.disabled = false;
+    button.innerHTML = '<span aria-hidden="true">&#9654;</span> Run compliance check';
   }
 }
 
-function setLoading(isLoading) {
-  $("#loadingState").classList.toggle("hidden", !isLoading);
-  $("#reviewEmpty").classList.add("hidden");
+function openView(viewName) {
+  $$(".view").forEach((view) => view.classList.toggle("active", view.id === `view-${viewName}`));
+  $$(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.view === viewName));
+  const activeView = $(`#view-${viewName}`);
+  $("#breadcrumbCurrent").textContent = activeView?.dataset.title || "Dashboard";
+  $("#sidebar").classList.remove("open");
+  $("#mobileMenu").setAttribute("aria-expanded", "false");
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function renderReview(review) {
-  $("#reviewEmpty").classList.add("hidden");
-  $("#reviewDetails").classList.remove("hidden");
-  $("#riskScore").innerHTML = `${review.riskScore} ${badge(review.riskLevel)}`;
-  $("#riskLevel").innerHTML = badge(review.riskLevel);
-  $("#policyStatus").innerHTML = badge(review.policyStatus);
-  $("#recommendedDecision").innerHTML = badge(review.recommendedDecision);
-  $("#finalDecision").innerHTML = badge(review.decision || "Pending");
-  $("#decisionTimestamp").textContent = review.reviewer?.decidedAt
-    ? formatDate(review.reviewer.decidedAt)
-    : "Waiting for reviewer";
-  $("#aiReport").textContent = review.report;
-  $("#reviewerNotes").value = review.recommendedDecision === "Reject"
-    ? "Sensitive action should not proceed without policy owner review."
-    : "Reviewed for demo governance workflow.";
+function setTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const dark = theme === "dark";
+  $("#themeIcon").innerHTML = dark ? "&#9790;" : "&#9788;";
+  $("#themeToggle").setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+  localStorage.setItem("agent-trust-theme", theme);
 }
 
-async function submitDecision(decision, reviewId = state.currentReview?.reviewId) {
-  if (!reviewId) {
-    showToast("No review selected.");
-    return;
-  }
-  const payload = {
-    reviewId,
-    decision,
-    reviewerName: $("#reviewerName").value || "Paul",
-    reviewerNotes: $("#reviewerNotes").value || "Decision recorded in AgentTrust OS."
-  };
+function showToast(message) {
+  const toast = $("#toast");
+  toast.textContent = message;
+  toast.classList.add("show");
+  clearTimeout(showToast.timeout);
+  showToast.timeout = setTimeout(() => toast.classList.remove("show"), 3200);
+}
+
+async function clearInteractions() {
   try {
-    const data = await api("/api/decision", { method: "POST", body: JSON.stringify(payload) });
-    state.currentReview = data.review;
-    renderReview(data.review);
-    await loadAll();
-    await generateAuditReport(reviewId, { scroll: true, silent: true });
-    showToast(`Decision recorded and report generated: ${decision}`);
+    await api("/api/interactions", { method: "DELETE" });
+    state.interactions = [];
+    state.metrics = { total: 0, compliant: 0, flagged: 0, blocked: 0, complianceRate: 100 };
+    state.ruleViolations = state.rules.map((rule) => ({ ...rule, count: 0 }));
+    state.expandedId = null;
+    $("#resultContent").classList.add("hidden");
+    $("#resultEmpty").classList.remove("hidden");
+    pipelineState(null);
+    renderAll();
+    showToast("Activity log cleared.");
   } catch (error) {
     showToast(error.message);
   }
 }
 
-async function generateAuditReport(reviewId = state.currentReview?.reviewId, options = {}) {
-  if (!reviewId) {
-    showToast("Complete a risk review first.");
-    return;
-  }
-  try {
-    const data = await api("/api/generate-audit-report", {
-      method: "POST",
-      body: JSON.stringify({
-        reviewId,
-        reviewerName: $("#reviewerName").value || "Paul",
-        reviewerNotes: $("#reviewerNotes").value || ""
-      })
-    });
-    state.currentReport = data.report;
-    $("#auditReportBox").textContent = data.report.reportText;
-    await loadAll();
-    if (options.scroll !== false) {
-      document.querySelector("#reports").scrollIntoView({ behavior: "smooth" });
-    }
-    if (!options.silent) showToast("Audit report generated.");
-    return data.report;
-  } catch (error) {
-    showToast(error.message);
-    return null;
-  }
-}
-
-async function copyReport() {
-  const text = $("#auditReportBox").textContent;
-  if (!state.currentReport) {
-    showToast("No report available to copy.");
-    return;
-  }
-  await navigator.clipboard.writeText(text);
-  showToast("Report copied.");
-}
-
-function downloadReport() {
-  const text = $("#auditReportBox").textContent;
-  if (!state.currentReport) {
-    showToast("No report available to download.");
-    return;
-  }
-  const blob = new Blob([text], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${state.currentReport?.id || "agenttrust-audit-report"}.txt`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-async function submitFeedback(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const payload = {
-    ...getFormData(form),
-    reportId: state.currentReport?.id || ""
-  };
-  try {
-    await api("/api/feedback", { method: "POST", body: JSON.stringify(payload) });
-    form.reset();
-    await loadAll();
-    showToast("Feedback submitted.");
-  } catch (error) {
-    showToast(error.message);
-  }
-}
-
-function fillSample() {
-  const financeAgent = state.agents.find((agent) => agent.name === sample.agent.name && agent.status !== "Inactive") || activeAgents()[0];
-  if (!financeAgent) {
-    showToast("Register an agent before loading the sample.");
-    return;
-  }
-
-  const policyForm = $("#policyForm");
-  policyForm.agentId.value = financeAgent.id;
-  policyForm.approvedActions.value = sample.policy.approvedActions;
-  policyForm.approvalRequiredActions.value = sample.policy.approvalRequiredActions;
-  policyForm.prohibitedActions.value = sample.policy.prohibitedActions;
-  policyForm.escalationContact.value = sample.policy.escalationContact;
-  policyForm.reviewFrequency.value = sample.policy.reviewFrequency;
-  setChecked(policyForm, "sensitiveDataRules", sample.policy.sensitiveDataRules);
-
-  const actionForm = $("#actionForm");
-  actionForm.agentId.value = financeAgent.id;
-  actionForm.actionTitle.value = sample.action.actionTitle;
-  actionForm.actionDescription.value = sample.action.actionDescription;
-  actionForm.intendedRecipient.value = sample.action.intendedRecipient;
-  actionForm.businessImpact.value = sample.action.businessImpact;
-  actionForm.outputSummary.value = sample.action.outputSummary;
-  actionForm.additionalNotes.value = sample.action.additionalNotes;
-  setChecked(actionForm, "toolsUsed", sample.action.toolsUsed);
-  setChecked(actionForm, "dataTouched", sample.action.dataTouched);
-  setRadio(actionForm, "humanApprovalRequested", sample.action.humanApprovalRequested);
-  setRadio(actionForm, "externalAction", sample.action.externalAction);
-
-  renderPolicySummary();
-  document.querySelector("#review").scrollIntoView({ behavior: "smooth" });
-  showToast("Sample finance scenario loaded.");
-}
-
-function fillSampleAgentForm() {
-  const form = $("#agentForm");
-  const sampleNumber = new Date().toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
+function bindEvents() {
+  $$(".nav-item").forEach((button) => button.addEventListener("click", () => openView(button.dataset.view)));
+  $$('[data-open-view]').forEach((button) => button.addEventListener("click", () => openView(button.dataset.openView)));
+  $("#mobileMenu").addEventListener("click", () => {
+    const open = $("#sidebar").classList.toggle("open");
+    $("#mobileMenu").setAttribute("aria-expanded", String(open));
   });
-
-  form.name.value = `${sample.agent.name} ${sampleNumber}`;
-  form.purpose.value = sample.agent.purpose;
-  form.department.value = sample.agent.department;
-  form.owner.value = sample.agent.owner;
-  form.riskCategory.value = sample.agent.riskCategory;
-  form.businessImpact.value = sample.agent.businessImpact;
-  form.notes.value = `${sample.agent.notes} Created from the sample autofill button.`;
-  setChecked(form, "tools", sample.agent.tools);
-  setChecked(form, "dataAccess", sample.agent.dataAccess);
-  showToast("Sample agent form filled. Click Register Agent to save it.");
-}
-
-function fillSamplePolicyForm() {
-  const form = $("#policyForm");
-  const agentId = form.agentId.value;
-  if (!agentId) {
-    showToast("Select or register an agent before filling sample policy rules.");
-    return;
-  }
-
-  form.approvedActions.value = sample.policy.approvedActions;
-  form.approvalRequiredActions.value = sample.policy.approvalRequiredActions;
-  form.prohibitedActions.value = sample.policy.prohibitedActions;
-  form.escalationContact.value = sample.policy.escalationContact;
-  form.reviewFrequency.value = sample.policy.reviewFrequency;
-  setChecked(form, "sensitiveDataRules", sample.policy.sensitiveDataRules);
-  const agent = state.agents.find((item) => item.id === agentId);
-  $("#policySummary").innerHTML = `
-    <p><strong>Agent:</strong> ${escapeHtml(agent?.name || "Selected agent")}</p>
-    <p><strong>Escalation contact:</strong> ${escapeHtml(sample.policy.escalationContact)}</p>
-    <p><strong>Review frequency:</strong> ${escapeHtml(sample.policy.reviewFrequency)}</p>
-    <p><strong>Approval rules:</strong> ${splitLines(sample.policy.approvalRequiredActions).length}</p>
-    <p><strong>Prohibited rules:</strong> ${splitLines(sample.policy.prohibitedActions).length}</p>
-  `;
-  showToast("Sample policy rules filled. Click Save Policy to store them.");
-}
-
-async function deactivateAgent(agentId) {
-  try {
-    await api(`/api/agents/${agentId}`, { method: "DELETE" });
-    await loadAll();
-    showToast("Agent deactivated.");
-  } catch (error) {
-    showToast(error.message);
-  }
-}
-
-function openReport(reportId) {
-  const report = state.reports.find((item) => item.id === reportId);
-  if (!report) return;
-  state.currentReport = report;
-  $("#auditReportBox").textContent = report.reportText;
-  document.querySelector("#reports").scrollIntoView({ behavior: "smooth" });
-}
-
-function startNewReview() {
-  state.currentReview = null;
-  $("#actionForm").reset();
-  $("#reviewDetails").classList.add("hidden");
-  $("#reviewEmpty").classList.remove("hidden");
-  if (!state.currentReport) {
-    $("#auditReportBox").textContent = "No audit reports have been generated yet.";
-  }
-  document.querySelector("#review").scrollIntoView({ behavior: "smooth" });
-}
-
-function attachEvents() {
-  $("#navToggle").addEventListener("click", () => $("#navLinks").classList.toggle("open"));
-  $("#agentForm").addEventListener("submit", submitAgent);
-  $("#policyForm").addEventListener("submit", submitPolicy);
-  $("#actionForm").addEventListener("submit", submitAction);
-  $("#policyAgentSelect").addEventListener("change", renderPolicySummary);
-  $("#sampleHeroBtn").addEventListener("click", fillSample);
-  $("#sampleAgentFormBtn").addEventListener("click", fillSampleAgentForm);
-  $("#samplePolicyFormBtn").addEventListener("click", fillSamplePolicyForm);
-  $("#sampleActionBtn").addEventListener("click", fillSample);
-  $("#generateReportBtn").addEventListener("click", () => generateAuditReport());
-  $("#copyReportBtn").addEventListener("click", copyReport);
-  $("#downloadReportBtn").addEventListener("click", downloadReport);
-  $("#printReportBtn").addEventListener("click", () => window.print());
-  $("#newReviewBtn").addEventListener("click", startNewReview);
-  $("#feedbackForm").addEventListener("submit", submitFeedback);
-
-  document.addEventListener("click", (event) => {
-    const decisionButton = event.target.closest("[data-decision]");
-    if (decisionButton) submitDecision(decisionButton.dataset.decision);
-
-    const queueButton = event.target.closest("[data-queue-decision]");
-    if (queueButton) submitDecision(queueButton.dataset.queueDecision, queueButton.dataset.reviewId);
-
-    const deleteButton = event.target.closest("[data-delete-agent]");
-    if (deleteButton) deactivateAgent(deleteButton.dataset.deleteAgent);
-
-    const selectButton = event.target.closest("[data-select-agent]");
-    if (selectButton) {
-      $("#policyAgentSelect").value = selectButton.dataset.selectAgent;
-      $("#actionAgentSelect").value = selectButton.dataset.selectAgent;
-      renderPolicySummary();
-      document.querySelector("#policies").scrollIntoView({ behavior: "smooth" });
-    }
-
-    const reportButton = event.target.closest("[data-open-report]");
-    if (reportButton) openReport(reportButton.dataset.openReport);
+  $("#themeToggle").addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
+  $("#scenarioCategory").addEventListener("change", renderScenarioOptions);
+  $("#scenarioSelect").addEventListener("change", (event) => setQueryFromScenario(event.target.value));
+  $("#queryInput").addEventListener("input", updateQueryCount);
+  $("#monitorForm").addEventListener("submit", runComplianceCheck);
+  $$(".filter-button").forEach((button) => button.addEventListener("click", () => {
+    state.activityFilter = button.dataset.filter;
+    state.expandedId = null;
+    $$(".filter-button").forEach((item) => item.classList.toggle("active", item === button));
+    renderActivity();
+  }));
+  $("#activityTableBody").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-expand-id]");
+    if (!button) return;
+    state.expandedId = state.expandedId === button.dataset.expandId ? null : button.dataset.expandId;
+    renderActivity();
+  });
+  $$(".data-tab").forEach((button) => button.addEventListener("click", () => {
+    state.dataTab = button.dataset.dataTab;
+    $$(".data-tab").forEach((item) => item.classList.toggle("active", item === button));
+    renderOfficialData();
+  }));
+  $("#clearLogButton").addEventListener("click", () => $("#clearDialog").showModal());
+  $("#clearDialog").addEventListener("close", () => {
+    if ($("#clearDialog").returnValue === "confirm") clearInteractions();
   });
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  attachEvents();
+async function initialize() {
+  const savedTheme = localStorage.getItem("agent-trust-theme");
+  setTheme(savedTheme || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+  $("#currentDate").textContent = new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  bindEvents();
+
   try {
-    await loadAll();
+    const data = await api("/api/bootstrap");
+    Object.assign(state, data);
+    renderScenarioOptions();
+    renderAll();
+    if (state.interactions[0]) renderResult(state.interactions[0]);
   } catch (error) {
-    showToast(error.message);
+    showToast(`Unable to load Agent Trust OS: ${error.message}`);
   }
-});
+}
+
+document.addEventListener("DOMContentLoaded", initialize);
