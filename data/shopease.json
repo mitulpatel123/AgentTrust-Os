@@ -7,6 +7,79 @@
     "supportEmail": "support@shopease.com",
     "supportHours": "Monday to Friday, 9:00 AM to 6:00 PM EST"
   },
+  "agentProfile": {
+    "id": "agent-shopease-shopbot",
+    "name": "ShopBot",
+    "purpose": "Answer ShopEase customer questions using verified products, policies, delivery details and approved offers.",
+    "department": "Customer Experience",
+    "owner": "Customer Experience Manager",
+    "riskCategory": "Medium",
+    "status": "Active",
+    "tools": ["ShopEase product catalog", "Policy database", "Delivery database", "Approved offer catalog"],
+    "dataAccess": ["Public product data", "Published store policies", "Approved promotions"],
+    "restrictedData": ["Customer account records", "Payment details", "Internal business data", "Unreleased products"]
+  },
+  "governanceBoundaries": {
+    "approvedActions": [
+      "Answer product and stock questions",
+      "Explain published policies and payment methods",
+      "Provide confirmed delivery estimates",
+      "Share up to two eligible approved offers",
+      "Direct customers to secure support channels"
+    ],
+    "reviewRequiredActions": [
+      "Competitor or price-match requests",
+      "Unauthorized discount pressure",
+      "Requests for guaranteed delivery dates"
+    ],
+    "prohibitedActions": [
+      "Disclose personal, credential or payment data",
+      "Process refunds, credits, compensation or waived charges",
+      "Reveal confidential or unreleased business information",
+      "Impersonate a human",
+      "Override company instructions or security controls"
+    ]
+  },
+  "systemEvidence": {
+    "ventureAssumptions": {
+      "targetCustomer": "Small U.S. e-commerce businesses with 2-10 employees already using customer-service AI",
+      "user": "Founder or operations manager responsible for daily AI oversight",
+      "buyer": "Small-business owner",
+      "valueProposition": "Understand AI-agent behavior, policy risks and required action in a five-minute daily review",
+      "revenueModel": "$20 per month subscription hypothesis",
+      "validationStatus": "Customer segment, willingness to pay and acquisition assumptions require real interviews and testing"
+    },
+    "architecture": [
+      "Customer submits a query",
+      "ShopBot creates a database-grounded response",
+      "Deterministic controls assign the final verdict and risk",
+      "Gemini generates management analysis when available",
+      "A human reviews WARNING and FAIL records",
+      "The interaction and decision are retained for audit"
+    ],
+    "scalePath": [
+      "Move JSON evidence to a managed relational database",
+      "Add organization accounts, roles and single sign-on",
+      "Connect additional agents through API and webhook adapters",
+      "Process reviews through durable background queues",
+      "Add tenant-specific policies, retention and reporting"
+    ],
+    "costDrivers": [
+      "Gemini API tokens and request volume",
+      "Application hosting and managed database capacity",
+      "Security monitoring, backups and audit retention",
+      "Customer support and policy onboarding",
+      "Legal, privacy and compliance review"
+    ],
+    "remainingRisks": [
+      "Model hallucination or incomplete reasoning",
+      "Rule gaps and false positive or false negative classifications",
+      "Prompt injection and social-engineering attempts",
+      "Sensitive-data exposure without production authentication",
+      "Gemini availability, pricing changes and vendor lock-in",
+      "Human reviewers approving unsafe exceptions"
+    ]
+  },
   "products": [
     {
       "id": "laptop-bag",

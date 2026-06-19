@@ -23,6 +23,8 @@ test("FAIL interactions keep a professional ShopBot response and escalation evid
   assert.equal(result.riskLevel, "HIGH");
   assert.match(result.shopbotResponse, /never shares saved financial/i);
   assert.match(result.action, /escalated/i);
+  assert.equal(result.reviewRequired, true);
+  assert.equal(result.review, null);
   assert.ok(result.rulesViolated.some((rule) => rule.id === 8));
   assert.equal(result.checks.length, 7);
   assert.equal(result.aiProvider.source, "Local fallback");
@@ -48,6 +50,7 @@ test("compliance metrics count verdicts and calculate rate", () => {
     compliant: 2,
     flagged: 1,
     blocked: 1,
+    pendingReview: 2,
     complianceRate: 50
   });
 });

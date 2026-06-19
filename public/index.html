@@ -28,16 +28,25 @@
         </button>
         <button class="nav-item" type="button" data-view="activity">
           <span class="nav-icon" aria-hidden="true">02</span>
+          <span>Review Queue</span>
+          <span class="nav-count" id="navReviewCount">0</span>
+        </button>
+        <button class="nav-item" type="button" data-view="activity-log">
+          <span class="nav-icon" aria-hidden="true">03</span>
           <span>Activity Log</span>
           <span class="nav-count" id="navActivityCount">0</span>
         </button>
         <button class="nav-item" type="button" data-view="audit">
-          <span class="nav-icon" aria-hidden="true">03</span>
+          <span class="nav-icon" aria-hidden="true">04</span>
           <span>Audit Report</span>
         </button>
         <button class="nav-item" type="button" data-view="rules">
-          <span class="nav-icon" aria-hidden="true">04</span>
+          <span class="nav-icon" aria-hidden="true">05</span>
           <span>Organization Rules</span>
+        </button>
+        <button class="nav-item" type="button" data-view="system">
+          <span class="nav-icon" aria-hidden="true">06</span>
+          <span>System &amp; Risk</span>
         </button>
       </nav>
 
@@ -45,7 +54,7 @@
         <div class="system-state"><span class="status-dot"></span> TRUST OS ACTIVE</div>
         <p>Monitoring ShopBot</p>
         <div class="ai-runtime" id="aiRuntime">AI analysis: loading</div>
-        <span>Version 2.0 MVP</span>
+        <span>Version 2.1 MVP</span>
       </div>
     </aside>
 
@@ -159,7 +168,7 @@
           <section class="table-section" aria-labelledby="recentTitle">
             <div class="section-heading">
               <div><p class="eyebrow">Latest evidence</p><h2 id="recentTitle">Recent interactions</h2></div>
-              <button class="text-button" type="button" data-open-view="activity">View complete log <span aria-hidden="true">&#8594;</span></button>
+              <button class="text-button" type="button" data-open-view="activity-log">View complete log <span aria-hidden="true">&#8594;</span></button>
             </div>
             <div class="table-wrap">
               <table>
@@ -168,9 +177,48 @@
               </table>
             </div>
           </section>
+
+          <section class="feedback-section" aria-labelledby="feedbackTitle">
+            <div class="section-heading">
+              <div><p class="eyebrow">External tester evidence</p><h2 id="feedbackTitle">Rate this governance workflow</h2></div>
+              <div class="feedback-heading-actions"><div class="feedback-summary" id="feedbackSummary">No ratings yet</div><a class="text-button" href="/api/feedback.csv" download>Export feedback</a></div>
+            </div>
+            <div class="feedback-layout">
+              <form id="feedbackForm">
+                <div class="form-row">
+                  <label>Tester name<input id="feedbackName" type="text" maxlength="80" placeholder="Name or role"></label>
+                  <label>Usefulness rating
+                    <select id="feedbackRating" required>
+                      <option value="">Select 1-5</option>
+                      <option value="5">5 - Very useful</option>
+                      <option value="4">4 - Useful</option>
+                      <option value="3">3 - Neutral</option>
+                      <option value="2">2 - Limited</option>
+                      <option value="1">1 - Not useful</option>
+                    </select>
+                  </label>
+                </div>
+                <label>Feedback comment<textarea id="feedbackComment" rows="3" maxlength="1000" placeholder="What was useful or unclear?"></textarea></label>
+                <button class="button primary" type="submit">Submit feedback</button>
+              </form>
+              <div class="feedback-list" id="feedbackList"></div>
+            </div>
+          </section>
         </section>
 
-        <section class="view" id="view-activity" data-title="Activity Log">
+        <section class="view" id="view-activity" data-title="Review Queue">
+          <div class="page-heading compact">
+            <div><p class="eyebrow">Human-in-the-loop control</p><h1>Review queue</h1><p>Record a named human decision for every WARNING and FAIL interaction.</p></div>
+            <div class="date-stamp"><strong id="pendingReviewCount">0</strong> pending</div>
+          </div>
+          <section class="table-section flush" aria-label="Interactions requiring human review">
+            <div class="table-wrap">
+              <table><thead><tr><th>Timestamp</th><th>Customer query</th><th>Verdict</th><th>Current status</th><th>Reviewer</th><th>Decision</th></tr></thead><tbody id="reviewTableBody"></tbody></table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="view-activity-log" data-title="Activity Log">
           <div class="page-heading compact">
             <div><p class="eyebrow">Complete evidence trail</p><h1>Activity log</h1><p>Every customer query, ShopBot response and TRUST OS decision.</p></div>
             <button class="button danger-outline" id="clearLogButton" type="button">Clear log</button>
@@ -194,7 +242,7 @@
         <section class="view" id="view-audit" data-title="Audit Report">
           <div class="page-heading compact">
             <div><p class="eyebrow">Governance summary</p><h1>Audit report</h1><p>Organization-level compliance performance and rule violations.</p></div>
-            <a class="button secondary" href="/api/audit.csv" download><span aria-hidden="true">&#8595;</span> Export CSV</a>
+            <div class="heading-actions"><button class="button secondary" id="printAudit" type="button">Print / PDF</button><a class="button secondary" href="/api/audit.csv" download><span aria-hidden="true">&#8595;</span> Export CSV</a></div>
           </div>
           <div class="metric-grid" id="auditMetrics" aria-label="Audit metrics"></div>
           <div class="audit-grid">
@@ -210,7 +258,7 @@
           <section class="table-section" aria-labelledby="auditTrailTitle">
             <div class="section-heading"><div><p class="eyebrow">Audit evidence</p><h2 id="auditTrailTitle">Interaction register</h2></div></div>
             <div class="table-wrap">
-              <table><thead><tr><th>ID</th><th>Date</th><th>Query</th><th>Verdict</th><th>Rules</th><th>Action</th></tr></thead><tbody id="auditTableBody"></tbody></table>
+              <table><thead><tr><th>ID</th><th>Date</th><th>Query</th><th>Verdict</th><th>Rules</th><th>Human review</th><th>Action</th></tr></thead><tbody id="auditTableBody"></tbody></table>
             </div>
           </section>
         </section>
@@ -220,6 +268,16 @@
             <div><p class="eyebrow">ShopEase governance framework</p><h1>Organization rules</h1><p>The controls TRUST OS applies consistently to every ShopBot interaction.</p></div>
             <span class="policy-version">Policy set 2.0</span>
           </div>
+
+          <section class="agent-profile-section" aria-labelledby="agentProfileTitle">
+            <div class="section-heading"><div><p class="eyebrow">Registered AI agent</p><h2 id="agentProfileTitle">ShopBot agent profile</h2></div><span class="system-state"><span class="status-dot"></span> Active</span></div>
+            <div class="agent-profile-grid" id="agentProfileGrid"></div>
+          </section>
+
+          <section class="boundary-section" aria-labelledby="boundaryTitle">
+            <div class="section-heading"><div><p class="eyebrow">Action governance</p><h2 id="boundaryTitle">Approved and prohibited boundaries</h2></div></div>
+            <div class="boundary-grid" id="boundaryGrid"></div>
+          </section>
 
           <div class="risk-levels" aria-label="Risk level definitions">
             <div class="risk-definition pass"><strong>PASS</strong><span>Low risk</span><p>Log the compliant interaction.</p></div>
@@ -246,6 +304,39 @@
             <div id="officialDataContent"></div>
           </section>
         </section>
+
+        <section class="view" id="view-system" data-title="System & Risk">
+          <div class="page-heading compact">
+            <div><p class="eyebrow">Responsible AI record</p><h1>System, scale and remaining risk</h1><p>Technical evidence supporting feasibility, disclosure, cost and human oversight.</p></div>
+            <a class="button secondary" href="/api/prompts.csv" download><span aria-hidden="true">&#8595;</span> Export prompt library</a>
+          </div>
+
+          <section class="model-disclosure" aria-labelledby="modelTitle">
+            <div><p class="eyebrow">AI disclosure</p><h2 id="modelTitle">Hybrid decision architecture</h2></div>
+            <div class="disclosure-grid">
+              <div><span>Final classification</span><strong>Deterministic TRUST OS controls</strong><p>Rules assign PASS, WARNING or FAIL and cannot be changed by the model.</p></div>
+              <div><span>Generative AI role</span><strong id="modelDisclosure">Gemini management analysis</strong><p>Generates a summary, risk reasoning and recommended follow-up.</p></div>
+              <div><span>Human oversight</span><strong>Required for WARNING and FAIL</strong><p>Reviewer decisions and notes are retained with the audit record.</p></div>
+            </div>
+          </section>
+
+          <section class="venture-assumptions" aria-labelledby="ventureAssumptionsTitle">
+            <div class="section-heading"><div><p class="eyebrow">Business-model evidence</p><h2 id="ventureAssumptionsTitle">Venture hypotheses</h2></div><span>Requires external validation</span></div>
+            <div class="venture-assumption-grid" id="ventureAssumptionGrid"></div>
+          </section>
+
+          <div class="evidence-grid">
+            <section class="evidence-panel"><p class="eyebrow">Workflow</p><h2>Technical architecture</h2><ol id="architectureList"></ol></section>
+            <section class="evidence-panel"><p class="eyebrow">Feasibility</p><h2>12-month scale path</h2><ol id="scaleList"></ol></section>
+            <section class="evidence-panel"><p class="eyebrow">Economics</p><h2>Primary cost drivers</h2><ul id="costList"></ul></section>
+            <section class="evidence-panel risk"><p class="eyebrow">Risk register</p><h2>Remaining MVP risks</h2><ul id="remainingRiskList"></ul></section>
+          </div>
+
+          <section class="test-evidence" aria-labelledby="testEvidenceTitle">
+            <div class="section-heading"><div><p class="eyebrow">Validation evidence</p><h2 id="testEvidenceTitle">Scenario test library</h2></div><strong>25 validated prompts / 30 automated checks</strong></div>
+            <div class="test-evidence-grid"><div><strong>10</strong><span>PASS prompts</span></div><div><strong>5</strong><span>WARNING prompts</span></div><div><strong>10</strong><span>FAIL prompts</span></div><div><strong>100%</strong><span>Expected verdict match</span></div></div>
+          </section>
+        </section>
       </main>
     </div>
   </div>
@@ -258,6 +349,26 @@
         <button class="button secondary" value="cancel">Cancel</button>
         <button class="button danger" id="confirmClear" value="confirm">Clear log</button>
       </div>
+    </form>
+  </dialog>
+
+  <dialog id="reviewDialog">
+    <form id="reviewForm">
+      <input id="reviewInteractionId" type="hidden">
+      <h2>Record human decision</h2>
+      <p id="reviewQueryPreview"></p>
+      <label>Reviewer name<input id="reviewerName" type="text" maxlength="80" required></label>
+      <label>Decision
+        <select id="reviewDecision" required>
+          <option value="">Select decision</option>
+          <option>Acknowledged</option>
+          <option>Confirmed Block</option>
+          <option>Approved Exception</option>
+          <option>Escalated</option>
+        </select>
+      </label>
+      <label>Review notes<textarea id="reviewNotes" rows="4" maxlength="1000" placeholder="Reason and follow-up controls"></textarea></label>
+      <div class="dialog-actions"><button class="button secondary" id="cancelReview" type="button">Cancel</button><button class="button primary" type="submit">Save decision</button></div>
     </form>
   </dialog>
 

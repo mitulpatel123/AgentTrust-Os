@@ -1,5 +1,8 @@
 const state = {
   company: null,
+  agentProfile: {},
+  governanceBoundaries: {},
+  systemEvidence: {},
   products: [],
   delivery: {},
   promotions: [],
@@ -9,7 +12,8 @@ const state = {
   rules: [],
   scenarios: [],
   interactions: [],
-  metrics: { total: 0, compliant: 0, flagged: 0, blocked: 0, complianceRate: 100 },
+  feedback: [],
+  metrics: { total: 0, compliant: 0, flagged: 0, blocked: 0, pendingReview: 0, complianceRate: 100 },
   ruleViolations: [],
   ai: { enabled: false, model: "gemini-3.5-flash" },
   activityFilter: "ALL",
@@ -80,6 +84,8 @@ function renderMetrics() {
   $("#monitorMetrics").innerHTML = metricCards(state.metrics);
   $("#auditMetrics").innerHTML = metricCards(state.metrics);
   $("#navActivityCount").textContent = state.metrics.total;
+  $("#navReviewCount").textContent = state.metrics.pendingReview || 0;
+  $("#pendingReviewCount").textContent = state.metrics.pendingReview || 0;
   $("#attentionCount").textContent = state.metrics.flagged + state.metrics.blocked;
   $("#filterAll").textContent = state.metrics.total;
   $("#filterPass").textContent = state.metrics.compliant;
@@ -189,6 +195,10 @@ function detailDrawer(item) {
   const rules = item.rulesViolated?.length
     ? item.rulesViolated.map((rule) => `Rule ${rule.id}: ${rule.title}`).join("; ")
     : "None";
+  const review = item.review
+    ? `${item.review.decision} by ${item.review.reviewer} on ${formatDate(item.review.decidedAt)}${item.review.notes ? ` - ${item.review.notes}` : ""}`
+    : item.reviewRequired ? "Pending human review" : "Not required";
+  const provider = `${item.aiProvider?.source || "Local fallback"}${item.aiProvider?.model ? ` / ${item.aiProvider.model}` : ""}`;
   return `
     <tr class="detail-row">
       <td colspan="6">
@@ -197,11 +207,40 @@ function detailDrawer(item) {
           <div><h3>ShopBot response</h3><p>${escapeHtml(item.shopbotResponse)}</p></div>
           <div><h3>TRUST OS explanation</h3><p>${escapeHtml(item.explanation)}</p></div>
           <div><h3>Rules triggered</h3><p>${escapeHtml(rules)}</p></div>
+          <div><h3>AI analysis source</h3><p>${escapeHtml(provider)}</p></div>
+          <div><h3>Human review</h3><p>${escapeHtml(review)}</p></div>
           <div class="full-span"><h3>Action taken</h3><p>${escapeHtml(item.action)}</p></div>
         </div>
       </td>
     </tr>
   `;
+}
+
+function renderReviewQueue() {
+  const reviewItems = state.interactions.filter((item) => item.reviewRequired);
+  $("#reviewTableBody").innerHTML = reviewItems.length ? reviewItems.map((item) => `
+    <tr>
+      <td>${escapeHtml(formatDate(item.createdAt))}</td>
+      <td class="query-cell" title="${escapeHtml(item.query)}">${escapeHtml(item.query)}</td>
+      <td>${badge(item.verdict)}</td>
+      <td>${item.review ? escapeHtml(item.review.decision) : '<span class="review-pending">Pending review</span>'}</td>
+      <td>${escapeHtml(item.review?.reviewer || "Unassigned")}</td>
+      <td><button class="table-action" type="button" data-review-id="${escapeHtml(item.id)}">${item.review ? "Update" : "Review"}</button></td>
+    </tr>
+  `).join("") : emptyRow(6, "No WARNING or FAIL interactions require review.");
+}
+
+function renderFeedback() {
+  const ratings = state.feedback.map((item) => Number(item.rating)).filter(Number.isFinite);
+  const average = ratings.length ? (ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length).toFixed(1) : null;
+  $("#feedbackSummary").textContent = average ? `${average} / 5 from ${ratings.length} tester${ratings.length === 1 ? "" : "s"}` : "No ratings yet";
+  $("#feedbackList").innerHTML = state.feedback.length ? state.feedback.slice(0, 5).map((item) => `
+    <article class="feedback-item">
+      <div><strong>${escapeHtml(item.name)}</strong><span>${"*".repeat(Number(item.rating))} / 5</span></div>
+      <p>${escapeHtml(item.comment || "No written comment")}</p>
+      <small>${escapeHtml(formatDate(item.createdAt))}</small>
+    </article>
+  `).join("") : '<div class="result-empty compact-empty"><p>No external tester feedback has been submitted.</p></div>';
 }
 
 function renderActivity() {
@@ -259,10 +298,11 @@ function renderAudit() {
         <td class="query-cell" title="${escapeHtml(item.query)}">${escapeHtml(item.query)}</td>
         <td>${badge(item.verdict)}</td>
         <td>${escapeHtml(rules)}</td>
+        <td>${escapeHtml(item.review?.decision || (item.reviewRequired ? "Pending review" : "Not required"))}</td>
         <td>${escapeHtml(item.action)}</td>
       </tr>
     `;
-  }).join("") : emptyRow(6, "Run a compliance check to create audit evidence.");
+  }).join("") : emptyRow(7, "Run a compliance check to create audit evidence.");
 }
 
 function renderRules() {
@@ -274,7 +314,54 @@ function renderRules() {
       <td><span class="system-state"><span class="status-dot"></span> Active</span></td>
     </tr>
   `).join("");
+  renderAgentProfile();
   renderOfficialData();
+}
+
+function renderAgentProfile() {
+  const profile = state.agentProfile || {};
+  const fields = [
+    ["Agent name", profile.name],
+    ["Owner", profile.owner],
+    ["Department", profile.department],
+    ["Risk category", profile.riskCategory],
+    ["Purpose", profile.purpose],
+    ["Approved data access", (profile.dataAccess || []).join(", ")]
+  ];
+  $("#agentProfileGrid").innerHTML = fields.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "Not defined")}</strong></div>`).join("");
+
+  const boundaryGroups = [
+    ["Approved actions", state.governanceBoundaries.approvedActions || [], "approved"],
+    ["Human review required", state.governanceBoundaries.reviewRequiredActions || [], "review"],
+    ["Prohibited actions", state.governanceBoundaries.prohibitedActions || [], "prohibited"]
+  ];
+  $("#boundaryGrid").innerHTML = boundaryGroups.map(([title, items, className]) => `
+    <article class="boundary-column ${className}"><h3>${escapeHtml(title)}</h3><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></article>
+  `).join("");
+}
+
+function renderSystemEvidence() {
+  const evidence = state.systemEvidence || {};
+  const fillList = (selector, items) => {
+    $(selector).innerHTML = (items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+  };
+  fillList("#architectureList", evidence.architecture);
+  fillList("#scaleList", evidence.scalePath);
+  fillList("#costList", evidence.costDrivers);
+  fillList("#remainingRiskList", evidence.remainingRisks);
+  $("#modelDisclosure").textContent = state.ai.enabled
+    ? `${state.ai.model} management analysis`
+    : `${state.ai.model} configured with local fallback active`;
+  const assumptions = evidence.ventureAssumptions || {};
+  const assumptionFields = [
+    ["Target customer", assumptions.targetCustomer],
+    ["Daily user", assumptions.user],
+    ["Economic buyer", assumptions.buyer],
+    ["Value proposition", assumptions.valueProposition],
+    ["Revenue model", assumptions.revenueModel],
+    ["Validation status", assumptions.validationStatus]
+  ];
+  $("#ventureAssumptionGrid").innerHTML = assumptionFields.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "Not defined")}</strong></div>`).join("");
 }
 
 function renderOfficialData() {
@@ -312,9 +399,12 @@ function renderAll() {
     : "AI analysis: local fallback";
   renderMetrics();
   renderRecent();
+  renderReviewQueue();
   renderActivity();
   renderAudit();
   renderRules();
+  renderFeedback();
+  renderSystemEvidence();
 }
 
 function pipelineState(activeStep, completeSteps = []) {
@@ -367,6 +457,63 @@ async function runComplianceCheck(event) {
   }
 }
 
+function openReviewDialog(interactionId) {
+  const interaction = state.interactions.find((item) => item.id === interactionId);
+  if (!interaction) return;
+  $("#reviewInteractionId").value = interaction.id;
+  $("#reviewQueryPreview").textContent = interaction.query;
+  $("#reviewerName").value = interaction.review?.reviewer || "";
+  $("#reviewDecision").value = interaction.review?.decision || "";
+  $("#reviewNotes").value = interaction.review?.notes || "";
+  $("#reviewDialog").showModal();
+}
+
+async function submitReview(event) {
+  event.preventDefault();
+  const interactionId = $("#reviewInteractionId").value;
+  try {
+    const data = await api(`/api/interactions/${encodeURIComponent(interactionId)}/review`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        reviewer: $("#reviewerName").value.trim(),
+        decision: $("#reviewDecision").value,
+        notes: $("#reviewNotes").value.trim()
+      })
+    });
+    const index = state.interactions.findIndex((item) => item.id === interactionId);
+    if (index >= 0) state.interactions[index] = data.interaction;
+    state.metrics = data.metrics;
+    state.ruleViolations = data.ruleViolations;
+    $("#reviewDialog").close();
+    renderAll();
+    if (!$("#resultContent").classList.contains("hidden") && state.interactions[0]?.id === interactionId) renderResult(data.interaction);
+    showToast(`Human decision recorded: ${data.interaction.review.decision}.`);
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+async function submitFeedback(event) {
+  event.preventDefault();
+  try {
+    const item = await api("/api/feedback", {
+      method: "POST",
+      body: JSON.stringify({
+        interactionId: state.interactions[0]?.id || "",
+        name: $("#feedbackName").value.trim(),
+        rating: Number($("#feedbackRating").value),
+        comment: $("#feedbackComment").value.trim()
+      })
+    });
+    state.feedback.unshift(item);
+    $("#feedbackForm").reset();
+    renderFeedback();
+    showToast("Tester feedback recorded.");
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
 function openView(viewName) {
   $$(".view").forEach((view) => view.classList.toggle("active", view.id === `view-${viewName}`));
   $$(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.view === viewName));
@@ -397,7 +544,7 @@ async function clearInteractions() {
   try {
     await api("/api/interactions", { method: "DELETE" });
     state.interactions = [];
-    state.metrics = { total: 0, compliant: 0, flagged: 0, blocked: 0, complianceRate: 100 };
+    state.metrics = { total: 0, compliant: 0, flagged: 0, blocked: 0, pendingReview: 0, complianceRate: 100 };
     state.ruleViolations = state.rules.map((rule) => ({ ...rule, count: 0 }));
     state.expandedId = null;
     $("#resultContent").classList.add("hidden");
@@ -434,6 +581,14 @@ function bindEvents() {
     state.expandedId = state.expandedId === button.dataset.expandId ? null : button.dataset.expandId;
     renderActivity();
   });
+  $("#reviewTableBody").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-review-id]");
+    if (button) openReviewDialog(button.dataset.reviewId);
+  });
+  $("#reviewForm").addEventListener("submit", submitReview);
+  $("#cancelReview").addEventListener("click", () => $("#reviewDialog").close());
+  $("#feedbackForm").addEventListener("submit", submitFeedback);
+  $("#printAudit").addEventListener("click", () => window.print());
   $$(".data-tab").forEach((button) => button.addEventListener("click", () => {
     state.dataTab = button.dataset.dataTab;
     $$(".data-tab").forEach((item) => item.classList.toggle("active", item === button));

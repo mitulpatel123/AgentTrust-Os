@@ -12,9 +12,12 @@ Every interaction receives a `PASS`, `WARNING` or `FAIL` verdict and is stored a
 ## Main Views
 
 - **Live Monitor** runs preloaded scenarios or custom customer queries.
+- **Review Queue** records human decisions for every WARNING and FAIL interaction.
 - **Activity Log** stores the query, response, verdict, risk, explanation and action.
-- **Audit Report** shows compliance metrics, rule violations and a CSV export.
-- **Organization Rules** documents all active controls and official ShopEase data.
+- **Audit Report** shows compliance metrics, rule violations, human decisions, print/PDF output and CSV export.
+- **Organization Rules** documents the registered ShopBot profile, action boundaries, active controls and official ShopEase data.
+- **System & Risk** discloses the AI role, architecture, scale path, cost drivers, test evidence and remaining risks.
+- **Tester Feedback** stores a 1-5 usefulness rating and comments for customer-validation evidence.
 
 ## Verdict Model
 
@@ -39,6 +42,8 @@ Run the tests with:
 ```bash
 npm test
 ```
+
+The automated suite also validates human review, feedback persistence and all CSV exports.
 
 ## Local Setup
 
@@ -100,8 +105,13 @@ sudo systemctl reload nginx
 - `GET /api/bootstrap`
 - `GET /api/interactions`
 - `POST /api/interactions`
+- `PATCH /api/interactions/:id/review`
 - `DELETE /api/interactions`
+- `GET /api/feedback`
+- `POST /api/feedback`
 - `GET /api/audit.csv`
+- `GET /api/feedback.csv`
+- `GET /api/prompts.csv`
 
 ## Project Structure
 

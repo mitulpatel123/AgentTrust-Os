@@ -15,6 +15,7 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
 const INTERACTIONS_FILE = path.join(__dirname, "data", "interactions.json");
+const FEEDBACK_FILE = path.join(__dirname, "data", "feedback.json");
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
 const AI_EXPLANATIONS = process.env.AI_EXPLANATIONS === "true" || process.env.AI_MODE === "hybrid";
@@ -32,17 +33,42 @@ async function ensureInteractionsFile() {
   }
 }
 
+async function ensureFeedbackFile() {
+  try {
+    await fs.access(FEEDBACK_FILE);
+  } catch {
+    await fs.writeFile(FEEDBACK_FILE, "[]\n");
+  }
+}
+
 async function readInteractions() {
   await ensureInteractionsFile();
   const raw = await fs.readFile(INTERACTIONS_FILE, "utf8");
   const data = raw.trim() ? JSON.parse(raw) : [];
-  return Array.isArray(data) ? data : [];
+  return Array.isArray(data) ? data.map((item) => ({
+    ...item,
+    reviewRequired: item.reviewRequired ?? item.verdict !== "PASS",
+    review: item.review || null
+  })) : [];
 }
 
 async function writeInteractions(interactions) {
   const tempFile = `${INTERACTIONS_FILE}.tmp`;
   await fs.writeFile(tempFile, `${JSON.stringify(interactions, null, 2)}\n`);
   await fs.rename(tempFile, INTERACTIONS_FILE);
+}
+
+async function readFeedback() {
+  await ensureFeedbackFile();
+  const raw = await fs.readFile(FEEDBACK_FILE, "utf8");
+  const data = raw.trim() ? JSON.parse(raw) : [];
+  return Array.isArray(data) ? data : [];
+}
+
+async function writeFeedback(feedback) {
+  const tempFile = `${FEEDBACK_FILE}.tmp`;
+  await fs.writeFile(tempFile, `${JSON.stringify(feedback, null, 2)}\n`);
+  await fs.rename(tempFile, FEEDBACK_FILE);
 }
 
 async function getGeminiAnalysis(interaction) {
@@ -125,6 +151,9 @@ function buildAuditCsv(interactions) {
     "AI Analysis Source",
     "AI Risk Reasoning",
     "AI Recommended Follow-up",
+    "Human Review Decision",
+    "Human Reviewer",
+    "Human Review Notes",
     "Action Taken"
   ];
   const rows = interactions.map((item) => [
@@ -139,6 +168,9 @@ function buildAuditCsv(interactions) {
     `${item.aiProvider?.source || "Local fallback"}${item.aiProvider?.model ? ` (${item.aiProvider.model})` : ""}`,
     item.aiAnalysis?.riskReasoning || "",
     item.aiAnalysis?.recommendedFollowUp || "",
+    item.review?.decision || (item.reviewRequired ? "Pending review" : "Not required"),
+    item.review?.reviewer || "",
+    item.review?.notes || "",
     item.action
   ]);
   return [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
@@ -167,9 +199,12 @@ app.get("/api/health", (_req, res) => {
 
 app.get("/api/bootstrap", async (_req, res, next) => {
   try {
-    const interactions = await readInteractions();
+    const [interactions, feedback] = await Promise.all([readInteractions(), readFeedback()]);
     res.json({
       company: database.company,
+      agentProfile: database.agentProfile,
+      governanceBoundaries: database.governanceBoundaries,
+      systemEvidence: database.systemEvidence,
       products: database.products,
       delivery: database.delivery,
       promotions: database.promotions,
@@ -179,6 +214,7 @@ app.get("/api/bootstrap", async (_req, res, next) => {
       rules: database.rules,
       scenarios,
       interactions,
+      feedback,
       metrics: calculateMetrics(interactions),
       ruleViolations: ruleViolationSummary(interactions),
       ai: {
@@ -248,6 +284,120 @@ app.post("/api/interactions", async (req, res, next) => {
   }
 });
 
+app.patch("/api/interactions/:id/review", async (req, res, next) => {
+  try {
+    const allowedDecisions = ["Acknowledged", "Confirmed Block", "Approved Exception", "Escalated"];
+    const reviewer = String(req.body.reviewer || "").trim();
+    const decision = String(req.body.decision || "").trim();
+    const notes = String(req.body.notes || "").trim();
+    if (!reviewer || !allowedDecisions.includes(decision)) {
+      const error = new Error("Reviewer name and a valid human decision are required");
+      error.status = 400;
+      throw error;
+    }
+    if (notes.length > 1000) {
+      const error = new Error("Review notes must be 1,000 characters or fewer");
+      error.status = 400;
+      throw error;
+    }
+
+    const interactions = await readInteractions();
+    const index = interactions.findIndex((item) => item.id === req.params.id);
+    if (index === -1) {
+      const error = new Error("Interaction was not found");
+      error.status = 404;
+      throw error;
+    }
+    if (!interactions[index].reviewRequired) {
+      const error = new Error("This PASS interaction does not require a human decision");
+      error.status = 400;
+      throw error;
+    }
+
+    interactions[index] = {
+      ...interactions[index],
+      review: {
+        decision,
+        reviewer,
+        notes,
+        decidedAt: new Date().toISOString()
+      }
+    };
+    await writeInteractions(interactions);
+    res.json({
+      interaction: interactions[index],
+      metrics: calculateMetrics(interactions),
+      ruleViolations: ruleViolationSummary(interactions)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/feedback", async (_req, res, next) => {
+  try {
+    res.json(await readFeedback());
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/feedback", async (req, res, next) => {
+  try {
+    const rating = Number(req.body.rating);
+    const name = String(req.body.name || "Anonymous tester").trim();
+    const comment = String(req.body.comment || "").trim();
+    const interactionId = String(req.body.interactionId || "").trim() || null;
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      const error = new Error("Select a usefulness rating from 1 to 5");
+      error.status = 400;
+      throw error;
+    }
+    if (comment.length > 1000) {
+      const error = new Error("Feedback comments must be 1,000 characters or fewer");
+      error.status = 400;
+      throw error;
+    }
+    const feedback = await readFeedback();
+    const item = {
+      id: `feedback-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      interactionId,
+      name: name || "Anonymous tester",
+      rating,
+      comment,
+      createdAt: new Date().toISOString()
+    };
+    feedback.unshift(item);
+    await writeFeedback(feedback.slice(0, 1000));
+    res.status(201).json(item);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/feedback.csv", async (_req, res, next) => {
+  try {
+    const feedback = await readFeedback();
+    const headers = ["Timestamp", "Tester", "Usefulness Rating", "Comment", "Interaction ID"];
+    const rows = feedback.map((item) => [item.createdAt, item.name, item.rating, item.comment, item.interactionId]);
+    const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", "attachment; filename=agent-trust-os-user-feedback.csv");
+    res.send(csv);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/api/feedback", async (_req, res, next) => {
+  try {
+    await writeFeedback([]);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.delete("/api/interactions", async (_req, res, next) => {
   try {
     await writeInteractions([]);
@@ -269,6 +419,15 @@ app.get("/api/audit.csv", async (_req, res, next) => {
   }
 });
 
+app.get("/api/prompts.csv", (_req, res) => {
+  const headers = ["Scenario ID", "Expected Verdict", "Label", "Test Prompt"];
+  const rows = scenarios.map((scenario) => [scenario.id, scenario.verdict, scenario.label, scenario.query]);
+  const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", "attachment; filename=agent-trust-os-prompt-library.csv");
+  res.send(csv);
+});
+
 app.use((error, _req, res, _next) => {
   console.error(error);
   res.status(error.status || 500).json({
@@ -278,7 +437,7 @@ app.use((error, _req, res, _next) => {
 });
 
 if (require.main === module) {
-  ensureInteractionsFile().then(() => {
+  Promise.all([ensureInteractionsFile(), ensureFeedbackFile()]).then(() => {
     app.listen(PORT, () => {
       console.log(`Agent Trust OS running at http://localhost:${PORT}`);
     });
