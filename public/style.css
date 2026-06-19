@@ -631,6 +631,41 @@ td {
   margin-top: 16px;
 }
 
+.feedback-list {
+  display: grid;
+  gap: 12px;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.feedback-item {
+  padding: 14px;
+  background: #f8fbfe;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.feedback-item > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.feedback-item strong {
+  color: var(--amber);
+}
+
+.feedback-item span,
+.feedback-item small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.feedback-item p {
+  margin: 10px 0;
+  color: var(--ink);
+}
+
 .pricing-grid {
   grid-template-columns: repeat(3, 1fr);
 }
@@ -810,6 +845,7 @@ td {
   #policies,
   #review,
   #approval,
+  #reportArchive,
   #feedback,
   #pricing,
   .footer,

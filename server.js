@@ -558,7 +558,11 @@ app.post("/api/review-action", async (req, res, next) => {
 app.post("/api/decision", async (req, res, next) => {
   try {
     requireFields(req.body, ["reviewId", "decision", "reviewerName"]);
-    const logs = await readJson("logs");
+    const [agents, logs, reports] = await Promise.all([
+      readJson("agents"),
+      readJson("logs"),
+      readJson("reports")
+    ]);
     const index = logs.findIndex((item) => item.reviewId === req.body.reviewId);
     if (index === -1) {
       const error = new Error("Review was not found");
@@ -573,6 +577,30 @@ app.post("/api/decision", async (req, res, next) => {
     };
     logs[index] = { ...logs[index], decision: req.body.decision, reviewer: decision };
     await writeJson("logs", logs);
+
+    const reportIndex = reports.findIndex((item) => item.reviewId === req.body.reviewId);
+    if (reportIndex >= 0) {
+      const review = logs[index];
+      const agent = agents.find((item) => item.id === review.agentId) || {
+        name: review.agentName,
+        owner: "Unknown",
+        department: "Unknown",
+        purpose: "Unknown"
+      };
+      reports[reportIndex] = {
+        ...reports[reportIndex],
+        finalDecision: decision.decision,
+        reportText: buildAuditReport({
+          reportId: reports[reportIndex].id,
+          review,
+          decision,
+          agent
+        }),
+        updatedAt: new Date().toISOString()
+      };
+      await writeJson("reports", reports);
+    }
+
     res.json({ success: true, review: logs[index] });
   } catch (error) {
     next(error);
@@ -589,13 +617,15 @@ app.post("/api/generate-audit-report", async (req, res, next) => {
       error.status = 404;
       throw error;
     }
+    if (!review.reviewer || review.decision === "Pending") {
+      const error = new Error("Record an Approved, Rejected, or Escalated decision before generating the audit report");
+      error.status = 400;
+      throw error;
+    }
     const agent = agents.find((item) => item.id === review.agentId) || { name: review.agentName, owner: "Unknown", department: "Unknown", purpose: "Unknown" };
-    const decision = review.reviewer || {
-      decision: req.body.decision || review.decision || "Pending",
-      reviewerName: req.body.reviewerName || "Not recorded",
-      reviewerNotes: req.body.reviewerNotes || "No reviewer notes recorded."
-    };
-    const reportId = makeId("report");
+    const decision = review.reviewer;
+    const existingIndex = reports.findIndex((item) => item.reviewId === review.reviewId);
+    const reportId = existingIndex >= 0 ? reports[existingIndex].id : makeId("report");
     const reportText = buildAuditReport({ reportId, review, decision, agent });
     const report = {
       id: reportId,
@@ -608,9 +638,11 @@ app.post("/api/generate-audit-report", async (req, res, next) => {
       policyStatus: review.policyStatus,
       finalDecision: decision.decision,
       reportText,
-      createdAt: new Date().toISOString()
+      createdAt: existingIndex >= 0 ? reports[existingIndex].createdAt : new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
-    reports.unshift(report);
+    if (existingIndex >= 0) reports[existingIndex] = report;
+    else reports.unshift(report);
     await writeJson("reports", reports);
     res.json({ success: true, report });
   } catch (error) {
@@ -620,7 +652,41 @@ app.post("/api/generate-audit-report", async (req, res, next) => {
 
 app.get("/api/reports", async (_req, res, next) => {
   try {
-    res.json(await readJson("reports"));
+    const [agents, logs, reports] = await Promise.all([
+      readJson("agents"),
+      readJson("logs"),
+      readJson("reports")
+    ]);
+    let changed = false;
+
+    const synchronizedReports = reports.map((report) => {
+      const review = logs.find((item) => item.reviewId === report.reviewId);
+      if (!review?.reviewer || review.decision === "Pending" || report.finalDecision === review.decision) {
+        return report;
+      }
+
+      const agent = agents.find((item) => item.id === review.agentId) || {
+        name: review.agentName,
+        owner: "Unknown",
+        department: "Unknown",
+        purpose: "Unknown"
+      };
+      changed = true;
+      return {
+        ...report,
+        finalDecision: review.decision,
+        reportText: buildAuditReport({
+          reportId: report.id,
+          review,
+          decision: review.reviewer,
+          agent
+        }),
+        updatedAt: new Date().toISOString()
+      };
+    });
+
+    if (changed) await writeJson("reports", synchronizedReports);
+    res.json(synchronizedReports);
   } catch (error) {
     next(error);
   }
@@ -640,6 +706,14 @@ app.post("/api/feedback", async (req, res, next) => {
     feedback.unshift(item);
     await writeJson("feedback", feedback);
     res.status(201).json({ success: true, feedback: item });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/feedback", async (_req, res, next) => {
+  try {
+    res.json(await readJson("feedback"));
   } catch (error) {
     next(error);
   }

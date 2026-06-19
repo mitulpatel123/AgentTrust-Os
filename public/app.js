@@ -3,6 +3,7 @@ const state = {
   policies: [],
   logs: [],
   reports: [],
+  feedback: [],
   currentReview: null,
   currentReport: null
 };
@@ -119,16 +120,18 @@ function selectedAgentId() {
 }
 
 async function loadAll() {
-  const [agents, policies, logs, reports] = await Promise.all([
+  const [agents, policies, logs, reports, feedback] = await Promise.all([
     api("/api/agents"),
     api("/api/policies"),
     api("/api/logs"),
-    api("/api/reports")
+    api("/api/reports"),
+    api("/api/feedback")
   ]);
   state.agents = agents;
   state.policies = policies;
   state.logs = logs;
   state.reports = reports;
+  state.feedback = feedback;
   renderAll();
 }
 
@@ -139,6 +142,7 @@ function renderAll() {
   renderDashboard();
   renderApprovalQueue();
   renderReports();
+  renderFeedback();
 }
 
 function renderAgentSelects() {
@@ -273,17 +277,47 @@ function renderApprovalQueue() {
 function renderReports() {
   const body = $("#reportsTableBody");
   if (!state.reports.length) {
-    body.innerHTML = "<tr><td colspan=\"5\">No audit reports generated yet.</td></tr>";
+    state.currentReport = null;
+    $("#auditReportBox").textContent = "No audit reports have been generated yet.";
+    body.innerHTML = "<tr><td colspan=\"7\">No audit reports generated yet.</td></tr>";
     return;
   }
+
+  const refreshedCurrent = state.currentReport
+    ? state.reports.find((report) => report.id === state.currentReport.id)
+    : null;
+  state.currentReport = refreshedCurrent || state.reports[0];
+  $("#auditReportBox").textContent = state.currentReport.reportText;
+
   body.innerHTML = state.reports.map((report) => `
     <tr>
-      <td><button class="link-button" type="button" data-open-report="${escapeHtml(report.id)}">${escapeHtml(report.id)}</button></td>
+      <td><strong>${escapeHtml(report.id)}</strong></td>
       <td>${escapeHtml(report.agentName)}</td>
+      <td>${escapeHtml(report.actionTitle)}</td>
       <td>${badge(report.riskLevel)}</td>
       <td>${badge(report.finalDecision)}</td>
-      <td>${formatDate(report.createdAt)}</td>
+      <td>${formatDate(report.updatedAt || report.createdAt)}</td>
+      <td><button class="btn btn-secondary table-action" type="button" data-open-report="${escapeHtml(report.id)}">View</button></td>
     </tr>
+  `).join("");
+}
+
+function renderFeedback() {
+  const list = $("#feedbackList");
+  if (!state.feedback.length) {
+    list.innerHTML = "<div class=\"empty-state\">No feedback submitted yet.</div>";
+    return;
+  }
+
+  list.innerHTML = state.feedback.map((item) => `
+    <article class="feedback-item">
+      <div>
+        <strong>${"&#9733;".repeat(Math.max(1, Math.min(5, Number(item.rating) || 1)))}</strong>
+        <span>${formatDate(item.createdAt)}</span>
+      </div>
+      <p>${escapeHtml(item.comment)}</p>
+      <small>Report: ${escapeHtml(item.reportId || "General MVP feedback")}</small>
+    </article>
   `).join("");
 }
 
@@ -357,6 +391,10 @@ function renderReview(review) {
   $("#riskLevel").innerHTML = badge(review.riskLevel);
   $("#policyStatus").innerHTML = badge(review.policyStatus);
   $("#recommendedDecision").innerHTML = badge(review.recommendedDecision);
+  $("#finalDecision").innerHTML = badge(review.decision || "Pending");
+  $("#decisionTimestamp").textContent = review.reviewer?.decidedAt
+    ? formatDate(review.reviewer.decidedAt)
+    : "Waiting for reviewer";
   $("#aiReport").textContent = review.report;
   $("#reviewerNotes").value = review.recommendedDecision === "Reject"
     ? "Sensitive action should not proceed without policy owner review."
@@ -376,18 +414,18 @@ async function submitDecision(decision, reviewId = state.currentReview?.reviewId
   };
   try {
     const data = await api("/api/decision", { method: "POST", body: JSON.stringify(payload) });
-    if (state.currentReview?.reviewId === reviewId) {
-      state.currentReview = data.review;
-    }
+    state.currentReview = data.review;
+    renderReview(data.review);
     await loadAll();
-    showToast(`Decision recorded: ${decision}`);
+    await generateAuditReport(reviewId, { scroll: true, silent: true });
+    showToast(`Decision recorded and report generated: ${decision}`);
   } catch (error) {
     showToast(error.message);
   }
 }
 
-async function generateAuditReport() {
-  if (!state.currentReview?.reviewId) {
+async function generateAuditReport(reviewId = state.currentReview?.reviewId, options = {}) {
+  if (!reviewId) {
     showToast("Complete a risk review first.");
     return;
   }
@@ -395,7 +433,7 @@ async function generateAuditReport() {
     const data = await api("/api/generate-audit-report", {
       method: "POST",
       body: JSON.stringify({
-        reviewId: state.currentReview.reviewId,
+        reviewId,
         reviewerName: $("#reviewerName").value || "Paul",
         reviewerNotes: $("#reviewerNotes").value || ""
       })
@@ -403,16 +441,20 @@ async function generateAuditReport() {
     state.currentReport = data.report;
     $("#auditReportBox").textContent = data.report.reportText;
     await loadAll();
-    document.querySelector("#reports").scrollIntoView({ behavior: "smooth" });
-    showToast("Audit report generated.");
+    if (options.scroll !== false) {
+      document.querySelector("#reports").scrollIntoView({ behavior: "smooth" });
+    }
+    if (!options.silent) showToast("Audit report generated.");
+    return data.report;
   } catch (error) {
     showToast(error.message);
+    return null;
   }
 }
 
 async function copyReport() {
   const text = $("#auditReportBox").textContent;
-  if (!state.currentReport && text.startsWith("Generate")) {
+  if (!state.currentReport) {
     showToast("No report available to copy.");
     return;
   }
@@ -422,7 +464,7 @@ async function copyReport() {
 
 function downloadReport() {
   const text = $("#auditReportBox").textContent;
-  if (!state.currentReport && text.startsWith("Generate")) {
+  if (!state.currentReport) {
     showToast("No report available to download.");
     return;
   }
@@ -445,6 +487,7 @@ async function submitFeedback(event) {
   try {
     await api("/api/feedback", { method: "POST", body: JSON.stringify(payload) });
     form.reset();
+    await loadAll();
     showToast("Feedback submitted.");
   } catch (error) {
     showToast(error.message);
@@ -553,7 +596,9 @@ function startNewReview() {
   $("#actionForm").reset();
   $("#reviewDetails").classList.add("hidden");
   $("#reviewEmpty").classList.remove("hidden");
-  $("#auditReportBox").textContent = "Generate an audit report after completing a review decision.";
+  if (!state.currentReport) {
+    $("#auditReportBox").textContent = "No audit reports have been generated yet.";
+  }
   document.querySelector("#review").scrollIntoView({ behavior: "smooth" });
 }
 
@@ -567,7 +612,7 @@ function attachEvents() {
   $("#sampleAgentFormBtn").addEventListener("click", fillSampleAgentForm);
   $("#samplePolicyFormBtn").addEventListener("click", fillSamplePolicyForm);
   $("#sampleActionBtn").addEventListener("click", fillSample);
-  $("#generateReportBtn").addEventListener("click", generateAuditReport);
+  $("#generateReportBtn").addEventListener("click", () => generateAuditReport());
   $("#copyReportBtn").addEventListener("click", copyReport);
   $("#downloadReportBtn").addEventListener("click", downloadReport);
   $("#printReportBtn").addEventListener("click", () => window.print());

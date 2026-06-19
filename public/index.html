@@ -338,6 +338,8 @@
             <div><span>Risk Level</span><strong id="riskLevel"></strong></div>
             <div><span>Policy Match</span><strong id="policyStatus"></strong></div>
             <div><span>Recommended Decision</span><strong id="recommendedDecision"></strong></div>
+            <div><span>Final Human Decision</span><strong id="finalDecision"></strong></div>
+            <div><span>Decision Timestamp</span><strong id="decisionTimestamp"></strong></div>
           </div>
           <pre id="aiReport" class="report-box"></pre>
           <div class="approval-controls">
@@ -367,31 +369,30 @@
       </div>
     </section>
 
-    <section class="section two-column" id="reports">
-      <div>
-        <div class="section-heading aligned">
-          <p class="eyebrow">Audit Report</p>
-          <h2>Audit-ready evidence</h2>
-        </div>
-        <pre id="auditReportBox" class="audit-report">Generate an audit report after completing a review decision.</pre>
-        <div class="button-row">
-          <button class="btn btn-secondary" id="copyReportBtn" type="button">Copy Report</button>
-          <button class="btn btn-secondary" id="downloadReportBtn" type="button">Download Report</button>
-          <button class="btn btn-secondary" id="printReportBtn" type="button">Print Report</button>
-          <button class="btn btn-outline" id="newReviewBtn" type="button">Start New Review</button>
-        </div>
+    <section class="section" id="reports">
+      <div class="section-heading aligned">
+        <p class="eyebrow">Audit Report</p>
+        <h2>Selected audit-ready evidence</h2>
       </div>
-      <div>
-        <div class="section-heading aligned">
-          <p class="eyebrow">Saved Reports</p>
-          <h2>Report archive</h2>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Report</th><th>Agent</th><th>Risk</th><th>Decision</th><th>Date</th></tr></thead>
-            <tbody id="reportsTableBody"></tbody>
-          </table>
-        </div>
+      <pre id="auditReportBox" class="audit-report">No audit reports have been generated yet.</pre>
+      <div class="button-row">
+        <button class="btn btn-secondary" id="copyReportBtn" type="button">Copy Report</button>
+        <button class="btn btn-secondary" id="downloadReportBtn" type="button">Download Report</button>
+        <button class="btn btn-secondary" id="printReportBtn" type="button">Print Report</button>
+        <button class="btn btn-outline" id="newReviewBtn" type="button">Start New Review</button>
+      </div>
+    </section>
+
+    <section class="section" id="reportArchive">
+      <div class="section-heading aligned">
+        <p class="eyebrow">Saved Reports</p>
+        <h2>All audit reports and statuses</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Report</th><th>Agent</th><th>Action</th><th>Risk</th><th>Final Status</th><th>Date</th><th></th></tr></thead>
+          <tbody id="reportsTableBody"></tbody>
+        </table>
       </div>
     </section>
 
@@ -412,8 +413,10 @@
         </form>
       </div>
       <aside class="summary-panel">
-        <h3>Responsible AI Notice</h3>
-        <p>Risk classifications are decision support. Do not use real confidential or sensitive company data in the demo. Human review is required for high-impact decisions.</p>
+        <h3>Submitted Feedback</h3>
+        <div id="feedbackList" class="feedback-list">
+          <div class="empty-state">No feedback submitted yet.</div>
+        </div>
       </aside>
     </section>
 
