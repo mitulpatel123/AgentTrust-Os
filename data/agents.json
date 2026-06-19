@@ -1,0 +1,44 @@
+[
+  {
+    "id": "agent-sales-support",
+    "name": "Sales Support Agent",
+    "purpose": "Drafts customer follow-up emails, summarizes CRM notes, and prepares sales pipeline updates.",
+    "department": "Sales",
+    "owner": "Sales Operations Lead",
+    "tools": ["Email", "CRM", "Calendar"],
+    "dataAccess": ["Public Information", "Customer Contact Information", "Purchase History"],
+    "riskCategory": "Medium",
+    "businessImpact": "Customer-facing",
+    "notes": "Sample demo agent for customer communication workflows.",
+    "status": "Active",
+    "createdAt": "2026-01-01T09:00:00.000Z"
+  },
+  {
+    "id": "agent-hr-screening",
+    "name": "HR Screening Agent",
+    "purpose": "Summarizes resumes and prepares interview screening notes for human review.",
+    "department": "HR",
+    "owner": "HR Manager",
+    "tools": ["HR System", "File Storage", "Email"],
+    "dataAccess": ["Employee Information", "Confidential Documents"],
+    "riskCategory": "High",
+    "businessImpact": "Employment impact",
+    "notes": "Human review is required before any employment decision.",
+    "status": "Active",
+    "createdAt": "2026-01-01T09:05:00.000Z"
+  },
+  {
+    "id": "agent-finance-report",
+    "name": "Finance Report Agent",
+    "purpose": "Summarizes monthly sales, expenses, and vendor information.",
+    "department": "Finance",
+    "owner": "Finance Manager",
+    "tools": ["Finance System", "Email", "File Storage"],
+    "dataAccess": ["Financial Records", "Confidential Documents", "Internal Business Data"],
+    "riskCategory": "High",
+    "businessImpact": "Financial impact",
+    "notes": "Sample high-risk finance governance scenario.",
+    "status": "Active",
+    "createdAt": "2026-01-01T09:10:00.000Z"
+  }
+]

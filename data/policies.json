@@ -1,0 +1,17 @@
+[
+  {
+    "id": "policy-finance-report",
+    "agentId": "agent-finance-report",
+    "approvedActions": "Summarize monthly financial data\nPrepare internal financial reports",
+    "approvalRequiredActions": "Export reports outside the company\nEmail financial reports to consultants\nShare vendor information externally",
+    "prohibitedActions": "Modify financial records\nApprove payments\nSend reports externally without human review",
+    "sensitiveDataRules": [
+      "Human review required for financial data",
+      "No credentials or secrets",
+      "No customer personal data in public AI tools"
+    ],
+    "escalationContact": "Finance Manager",
+    "reviewFrequency": "High-risk actions only",
+    "updatedAt": "2026-01-01T09:20:00.000Z"
+  }
+]

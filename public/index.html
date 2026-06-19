@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentTrust OS | AI Agent Governance</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav">
+      <a class="brand" href="#top" aria-label="AgentTrust OS home">
+        <span class="brand-mark">AT</span>
+        <span>AgentTrust OS</span>
+      </a>
+      <button class="nav-toggle" id="navToggle" type="button" aria-label="Toggle navigation">Menu</button>
+      <div class="nav-links" id="navLinks">
+        <a href="#workflow">Workflow</a>
+        <a href="#registry">Agents</a>
+        <a href="#policies">Policies</a>
+        <a href="#review">Review</a>
+        <a href="#reports">Reports</a>
+        <a href="#pricing">Pricing</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero section">
+      <div class="hero-copy">
+        <p class="eyebrow">AI Agent Governance and Audit Workspace</p>
+        <h1>AgentTrust OS</h1>
+        <p class="tagline">Turn AI-Agent Activity Into Governed, Reviewable, Audit-Ready Evidence</p>
+        <p class="subtitle">AgentTrust OS helps organizations register AI agents, define permitted actions, monitor activity, classify risk, route approvals, and generate audit-ready reports.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#review">Start Governance Review</a>
+          <button class="btn btn-secondary" id="sampleHeroBtn" type="button">Try Sample Agent</button>
+        </div>
+        <p class="disclaimer">Educational MVP only. This product does not provide legal, regulatory, cybersecurity, financial, or professional compliance advice.</p>
+      </div>
+      <div class="hero-visual" aria-label="AgentTrust OS dashboard preview">
+        <div class="monitor-bar">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="risk-gauge">
+          <div>
+            <strong id="heroRiskScore">85</strong>
+            <span>Critical Risk</span>
+          </div>
+        </div>
+        <div class="visual-grid">
+          <div>
+            <span class="mini-label">Policy</span>
+            <strong>Approval Required</strong>
+          </div>
+          <div>
+            <span class="mini-label">Decision</span>
+            <strong>Escalate</strong>
+          </div>
+          <div>
+            <span class="mini-label">Evidence</span>
+            <strong>Audit Ready</strong>
+          </div>
+          <div>
+            <span class="mini-label">Controls</span>
+            <strong>3 Required</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section compact" id="value">
+      <div class="section-heading">
+        <p class="eyebrow">Problem and Value Proposition</p>
+        <h2>AI agents can act faster than governance systems can explain.</h2>
+        <p>Organizations need visibility into what agents did, what data they touched, whether policies were followed, and who approved sensitive actions.</p>
+      </div>
+      <div class="value-grid">
+        <article class="value-card"><strong>Agent Registry</strong><span>Document owner, purpose, tools, data access, and risk.</span></article>
+        <article class="value-card"><strong>Policy Controls</strong><span>Define approved, approval-required, and prohibited actions.</span></article>
+        <article class="value-card"><strong>Action Logs</strong><span>Capture agent activity for consistent review evidence.</span></article>
+        <article class="value-card"><strong>AI Risk Classification</strong><span>Classify risk using policy context and scoring rules.</span></article>
+        <article class="value-card"><strong>Human Approval</strong><span>Route higher-risk actions to reviewers for decisions.</span></article>
+        <article class="value-card"><strong>Audit Reports</strong><span>Generate downloadable evidence for classroom demos.</span></article>
+      </div>
+    </section>
+
+    <section class="section" id="workflow">
+      <div class="section-heading">
+        <p class="eyebrow">MVP Architecture</p>
+        <h2>Governance workflow</h2>
+      </div>
+      <div class="workflow" aria-label="MVP workflow">
+        <span>Agent Registration</span>
+        <span>Policy Rules</span>
+        <span>Action Log</span>
+        <span>AI Risk Review</span>
+        <span>Human Approval</span>
+        <span>Audit Report</span>
+        <span>Feedback</span>
+      </div>
+    </section>
+
+    <section class="section dashboard-section" id="dashboard">
+      <div class="section-heading">
+        <p class="eyebrow">Live Demo Dashboard</p>
+        <h2>Governance snapshot</h2>
+      </div>
+      <div class="metrics-grid">
+        <article class="metric"><span>Registered Agents</span><strong id="metricAgents">0</strong></article>
+        <article class="metric"><span>Pending Approvals</span><strong id="metricPending">0</strong></article>
+        <article class="metric"><span>High-Risk Events</span><strong id="metricHigh">0</strong></article>
+        <article class="metric"><span>Critical Events</span><strong id="metricCritical">0</strong></article>
+        <article class="metric"><span>Reports Generated</span><strong id="metricReports">0</strong></article>
+        <article class="metric"><span>Average Risk Score</span><strong id="metricAverage">0</strong></article>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <caption>Recent activity</caption>
+          <thead>
+            <tr>
+              <th>Agent</th>
+              <th>Action</th>
+              <th>Risk</th>
+              <th>Policy</th>
+              <th>Decision</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="recentActivityBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section two-column" id="registry">
+      <div>
+        <div class="section-heading aligned">
+          <p class="eyebrow">Agent Registry</p>
+          <h2>Register an AI agent</h2>
+        </div>
+        <form class="form-card" id="agentForm">
+          <label>Agent Name <input name="name" type="text" required></label>
+          <label>Agent Purpose <textarea name="purpose" rows="3" required></textarea></label>
+          <div class="form-grid">
+            <label>Department
+              <select name="department" required>
+                <option value="">Select department</option>
+                <option>Sales</option><option>Marketing</option><option>Finance</option><option>HR</option>
+                <option>Customer Support</option><option>Operations</option><option>Legal / Compliance</option>
+                <option>IT / Security</option><option>Healthcare</option><option>Other</option>
+              </select>
+            </label>
+            <label>Agent Owner <input name="owner" type="text" required></label>
+          </div>
+          <fieldset>
+            <legend>Tools the Agent Can Access</legend>
+            <div class="check-grid" data-checkbox-group="tools">
+              <label><input type="checkbox" value="Email"> Email</label>
+              <label><input type="checkbox" value="CRM"> CRM</label>
+              <label><input type="checkbox" value="File Storage"> File Storage</label>
+              <label><input type="checkbox" value="HR System"> HR System</label>
+              <label><input type="checkbox" value="Finance System"> Finance System</label>
+              <label><input type="checkbox" value="Customer Support Platform"> Customer Support Platform</label>
+              <label><input type="checkbox" value="Analytics Platform"> Analytics Platform</label>
+              <label><input type="checkbox" value="Calendar"> Calendar</label>
+              <label><input type="checkbox" value="Messaging Tools"> Messaging Tools</label>
+              <label><input type="checkbox" value="Internal Database"> Internal Database</label>
+              <label><input type="checkbox" value="Other"> Other</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Data the Agent Can Access</legend>
+            <div class="check-grid" data-checkbox-group="dataAccess">
+              <label><input type="checkbox" value="Public Information"> Public Information</label>
+              <label><input type="checkbox" value="Customer Contact Information"> Customer Contact Information</label>
+              <label><input type="checkbox" value="Purchase History"> Purchase History</label>
+              <label><input type="checkbox" value="Financial Records"> Financial Records</label>
+              <label><input type="checkbox" value="Employee Information"> Employee Information</label>
+              <label><input type="checkbox" value="Health Information"> Health Information</label>
+              <label><input type="checkbox" value="Credentials or Secrets"> Credentials or Secrets</label>
+              <label><input type="checkbox" value="Confidential Documents"> Confidential Documents</label>
+              <label><input type="checkbox" value="Internal Business Data"> Internal Business Data</label>
+              <label><input type="checkbox" value="Other"> Other</label>
+            </div>
+          </fieldset>
+          <div class="form-grid">
+            <label>Agent Risk Category
+              <select name="riskCategory" required>
+                <option>Not Yet Assessed</option><option>Low</option><option>Medium</option><option>High</option>
+              </select>
+            </label>
+            <label>Business Impact
+              <select name="businessImpact" required>
+                <option>Informational only</option><option>Internal productivity</option><option>Customer-facing</option>
+                <option>Financial impact</option><option>Employment impact</option><option>Legal / compliance impact</option>
+                <option>Safety or healthcare impact</option>
+              </select>
+            </label>
+          </div>
+          <label>Notes <textarea name="notes" rows="2"></textarea></label>
+          <button class="btn btn-primary" type="submit">Register Agent</button>
+        </form>
+      </div>
+      <div>
+        <div class="section-heading aligned">
+          <p class="eyebrow">Registered Agents</p>
+          <h2>Agent inventory</h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Owner</th><th>Dept</th><th>Risk</th><th>Status</th><th></th></tr></thead>
+            <tbody id="agentsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section two-column" id="policies">
+      <div>
+        <div class="section-heading aligned">
+          <p class="eyebrow">Policy Rule Builder</p>
+          <h2>Define governance rules</h2>
+        </div>
+        <form class="form-card" id="policyForm">
+          <label>Select Agent <select name="agentId" id="policyAgentSelect" required></select></label>
+          <label>Approved Actions <textarea name="approvedActions" rows="4" required placeholder="Draft customer follow-up emails&#10;Summarize CRM notes"></textarea></label>
+          <label>Approval-Required Actions <textarea name="approvalRequiredActions" rows="4" required placeholder="Send customer-facing messages&#10;Export data"></textarea></label>
+          <label>Prohibited Actions <textarea name="prohibitedActions" rows="4" required placeholder="Change financial records&#10;Approve payments"></textarea></label>
+          <fieldset>
+            <legend>Sensitive Data Rules</legend>
+            <div class="check-grid" data-checkbox-group="sensitiveDataRules">
+              <label><input type="checkbox" value="No customer personal data in public AI tools"> No customer personal data in public AI tools</label>
+              <label><input type="checkbox" value="No health data without approved system"> No health data without approved system</label>
+              <label><input type="checkbox" value="No credentials or secrets"> No credentials or secrets</label>
+              <label><input type="checkbox" value="Human review required for financial data"> Human review required for financial data</label>
+              <label><input type="checkbox" value="Human review required for HR data"> Human review required for HR data</label>
+              <label><input type="checkbox" value="Human review required for legal output"> Human review required for legal output</label>
+              <label><input type="checkbox" value="Human review required for customer-facing output"> Human review required for customer-facing output</label>
+            </div>
+          </fieldset>
+          <div class="form-grid">
+            <label>Escalation Contact <input name="escalationContact" type="text" required></label>
+            <label>Review Frequency
+              <select name="reviewFrequency" required>
+                <option>Every action</option><option>Daily</option><option>Weekly</option><option>Monthly</option><option>High-risk actions only</option>
+              </select>
+            </label>
+          </div>
+          <button class="btn btn-primary" type="submit">Save Policy</button>
+        </form>
+      </div>
+      <aside class="summary-panel">
+        <h3>Policy Summary</h3>
+        <div id="policySummary" class="empty-state">Select an agent to view or edit policy rules.</div>
+      </aside>
+    </section>
+
+    <section class="section two-column" id="review">
+      <div>
+        <div class="section-heading aligned">
+          <p class="eyebrow">Agent Action Log</p>
+          <h2>Submit an action for review</h2>
+        </div>
+        <form class="form-card" id="actionForm">
+          <label>Select Agent <select name="agentId" id="actionAgentSelect" required></select></label>
+          <label>Action Title <input name="actionTitle" type="text" required></label>
+          <label>Action Description <textarea name="actionDescription" rows="3" required></textarea></label>
+          <fieldset>
+            <legend>Tools Used</legend>
+            <div class="check-grid" data-checkbox-group="toolsUsed">
+              <label><input type="checkbox" value="Email"> Email</label><label><input type="checkbox" value="CRM"> CRM</label>
+              <label><input type="checkbox" value="File Storage"> File Storage</label><label><input type="checkbox" value="Finance System"> Finance System</label>
+              <label><input type="checkbox" value="HR System"> HR System</label><label><input type="checkbox" value="Customer Support Platform"> Customer Support Platform</label>
+              <label><input type="checkbox" value="Analytics Platform"> Analytics Platform</label><label><input type="checkbox" value="Database"> Database</label>
+              <label><input type="checkbox" value="Other"> Other</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Data Touched</legend>
+            <div class="check-grid" data-checkbox-group="dataTouched">
+              <label><input type="checkbox" value="Public data"> Public data</label><label><input type="checkbox" value="Customer contact information"> Customer contact information</label>
+              <label><input type="checkbox" value="Purchase history"> Purchase history</label><label><input type="checkbox" value="Financial data"> Financial data</label>
+              <label><input type="checkbox" value="Employee data"> Employee data</label><label><input type="checkbox" value="Health data"> Health data</label>
+              <label><input type="checkbox" value="Confidential documents"> Confidential documents</label><label><input type="checkbox" value="Credentials"> Credentials</label>
+              <label><input type="checkbox" value="Other"> Other</label>
+            </div>
+          </fieldset>
+          <div class="form-grid">
+            <label>Intended Recipient
+              <select name="intendedRecipient" required>
+                <option>Internal only</option><option>Customer</option><option>Vendor</option><option>Consultant</option><option>Public</option><option>Unknown</option>
+              </select>
+            </label>
+            <label>Business Impact
+              <select name="businessImpact" required>
+                <option>Low</option><option>Moderate</option><option>High</option><option>Critical</option>
+              </select>
+            </label>
+          </div>
+          <div class="radio-row">
+            <fieldset>
+              <legend>Was Human Approval Requested?</legend>
+              <label><input type="radio" name="humanApprovalRequested" value="Yes" required> Yes</label>
+              <label><input type="radio" name="humanApprovalRequested" value="No"> No</label>
+              <label><input type="radio" name="humanApprovalRequested" value="Not sure"> Not sure</label>
+            </fieldset>
+            <fieldset>
+              <legend>Did the Agent Attempt an External Action?</legend>
+              <label><input type="radio" name="externalAction" value="Yes" required> Yes</label>
+              <label><input type="radio" name="externalAction" value="No"> No</label>
+              <label><input type="radio" name="externalAction" value="Not sure"> Not sure</label>
+            </fieldset>
+          </div>
+          <label>Output Summary <textarea name="outputSummary" rows="3"></textarea></label>
+          <label>Additional Notes <textarea name="additionalNotes" rows="2"></textarea></label>
+          <div class="button-row">
+            <button class="btn btn-primary" type="submit">Review Agent Action</button>
+            <button class="btn btn-secondary" id="sampleActionBtn" type="button">Try Sample Agent</button>
+          </div>
+        </form>
+      </div>
+      <aside class="result-panel" id="riskResult">
+        <div class="section-heading aligned">
+          <p class="eyebrow">AI Risk Review Result</p>
+          <h2>Decision support output</h2>
+        </div>
+        <div id="loadingState" class="loading hidden">Reviewing action...</div>
+        <div id="reviewEmpty" class="empty-state">Submit an action to generate a risk review.</div>
+        <div id="reviewDetails" class="hidden">
+          <div class="result-stats">
+            <div><span>Risk Score</span><strong id="riskScore"></strong></div>
+            <div><span>Risk Level</span><strong id="riskLevel"></strong></div>
+            <div><span>Policy Match</span><strong id="policyStatus"></strong></div>
+            <div><span>Recommended Decision</span><strong id="recommendedDecision"></strong></div>
+          </div>
+          <pre id="aiReport" class="report-box"></pre>
+          <div class="approval-controls">
+            <input id="reviewerName" type="text" placeholder="Reviewer name" value="Paul">
+            <textarea id="reviewerNotes" rows="2" placeholder="Reviewer notes"></textarea>
+            <div class="button-row">
+              <button class="btn btn-success" type="button" data-decision="Approved">Approve</button>
+              <button class="btn btn-danger" type="button" data-decision="Rejected">Reject</button>
+              <button class="btn btn-warning" type="button" data-decision="Escalated">Escalate</button>
+            </div>
+            <button class="btn btn-primary full" id="generateReportBtn" type="button">Generate Audit Report</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section" id="approval">
+      <div class="section-heading">
+        <p class="eyebrow">Approval Queue</p>
+        <h2>Actions requiring human review</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Agent</th><th>Action</th><th>Risk</th><th>Policy</th><th>Date</th><th>Decision</th></tr></thead>
+          <tbody id="approvalQueueBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section two-column" id="reports">
+      <div>
+        <div class="section-heading aligned">
+          <p class="eyebrow">Audit Report</p>
+          <h2>Audit-ready evidence</h2>
+        </div>
+        <pre id="auditReportBox" class="audit-report">Generate an audit report after completing a review decision.</pre>
+        <div class="button-row">
+          <button class="btn btn-secondary" id="copyReportBtn" type="button">Copy Report</button>
+          <button class="btn btn-secondary" id="downloadReportBtn" type="button">Download Report</button>
+          <button class="btn btn-secondary" id="printReportBtn" type="button">Print Report</button>
+          <button class="btn btn-outline" id="newReviewBtn" type="button">Start New Review</button>
+        </div>
+      </div>
+      <div>
+        <div class="section-heading aligned">
+          <p class="eyebrow">Saved Reports</p>
+          <h2>Report archive</h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Report</th><th>Agent</th><th>Risk</th><th>Decision</th><th>Date</th></tr></thead>
+            <tbody id="reportsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section two-column" id="feedback">
+      <div>
+        <div class="section-heading aligned">
+          <p class="eyebrow">MVP Feedback</p>
+          <h2>How useful was this governance review?</h2>
+        </div>
+        <form class="form-card" id="feedbackForm">
+          <label>Rating
+            <select name="rating" required>
+              <option value="5">5 stars</option><option value="4">4 stars</option><option value="3">3 stars</option><option value="2">2 stars</option><option value="1">1 star</option>
+            </select>
+          </label>
+          <label>What should be improved? <textarea name="comment" rows="4" required></textarea></label>
+          <button class="btn btn-primary" type="submit">Submit Feedback</button>
+        </form>
+      </div>
+      <aside class="summary-panel">
+        <h3>Responsible AI Notice</h3>
+        <p>Risk classifications are decision support. Do not use real confidential or sensitive company data in the demo. Human review is required for high-impact decisions.</p>
+      </aside>
+    </section>
+
+    <section class="section" id="pricing">
+      <div class="section-heading">
+        <p class="eyebrow">Pricing Plans</p>
+        <h2>Investor-demo business model</h2>
+      </div>
+      <div class="pricing-grid">
+        <article class="price-card">
+          <h3>Starter Plan</h3>
+          <strong>$49-$99 / month</strong>
+          <ul><li>1-5 AI agents</li><li>Basic action logs</li><li>Standard risk reviews</li><li>Monthly audit report</li></ul>
+        </article>
+        <article class="price-card featured">
+          <h3>Growth Plan</h3>
+          <strong>$199-$499 / month</strong>
+          <ul><li>Multiple teams</li><li>Approval queue</li><li>Advanced reports</li><li>Risk dashboard</li><li>Multiple reviewers</li></ul>
+        </article>
+        <article class="price-card">
+          <h3>Enterprise Plan</h3>
+          <strong>Custom</strong>
+          <ul><li>API integrations</li><li>Role-based access</li><li>Advanced controls</li><li>Custom policies</li><li>Enterprise reporting</li><li>Dedicated support</li></ul>
+        </article>
+      </div>
+      <div class="funding-strip">
+        <strong>Funding Ask:</strong> $80,000 pre-seed classroom investment for pilot delivery, integrations, security controls, and sales validation.
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>AgentTrust OS | Group B | COMP630 Technology Entrepreneurship Final Project</p>
+    <p>Educational MVP. Not legal, compliance, cybersecurity, financial, HR, healthcare, or safety advice.</p>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
