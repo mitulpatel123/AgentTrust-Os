@@ -485,6 +485,51 @@ function fillSample() {
   showToast("Sample finance scenario loaded.");
 }
 
+function fillSampleAgentForm() {
+  const form = $("#agentForm");
+  const sampleNumber = new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+
+  form.name.value = `${sample.agent.name} ${sampleNumber}`;
+  form.purpose.value = sample.agent.purpose;
+  form.department.value = sample.agent.department;
+  form.owner.value = sample.agent.owner;
+  form.riskCategory.value = sample.agent.riskCategory;
+  form.businessImpact.value = sample.agent.businessImpact;
+  form.notes.value = `${sample.agent.notes} Created from the sample autofill button.`;
+  setChecked(form, "tools", sample.agent.tools);
+  setChecked(form, "dataAccess", sample.agent.dataAccess);
+  showToast("Sample agent form filled. Click Register Agent to save it.");
+}
+
+function fillSamplePolicyForm() {
+  const form = $("#policyForm");
+  const agentId = form.agentId.value;
+  if (!agentId) {
+    showToast("Select or register an agent before filling sample policy rules.");
+    return;
+  }
+
+  form.approvedActions.value = sample.policy.approvedActions;
+  form.approvalRequiredActions.value = sample.policy.approvalRequiredActions;
+  form.prohibitedActions.value = sample.policy.prohibitedActions;
+  form.escalationContact.value = sample.policy.escalationContact;
+  form.reviewFrequency.value = sample.policy.reviewFrequency;
+  setChecked(form, "sensitiveDataRules", sample.policy.sensitiveDataRules);
+  const agent = state.agents.find((item) => item.id === agentId);
+  $("#policySummary").innerHTML = `
+    <p><strong>Agent:</strong> ${escapeHtml(agent?.name || "Selected agent")}</p>
+    <p><strong>Escalation contact:</strong> ${escapeHtml(sample.policy.escalationContact)}</p>
+    <p><strong>Review frequency:</strong> ${escapeHtml(sample.policy.reviewFrequency)}</p>
+    <p><strong>Approval rules:</strong> ${splitLines(sample.policy.approvalRequiredActions).length}</p>
+    <p><strong>Prohibited rules:</strong> ${splitLines(sample.policy.prohibitedActions).length}</p>
+  `;
+  showToast("Sample policy rules filled. Click Save Policy to store them.");
+}
+
 async function deactivateAgent(agentId) {
   try {
     await api(`/api/agents/${agentId}`, { method: "DELETE" });
@@ -519,6 +564,8 @@ function attachEvents() {
   $("#actionForm").addEventListener("submit", submitAction);
   $("#policyAgentSelect").addEventListener("change", renderPolicySummary);
   $("#sampleHeroBtn").addEventListener("click", fillSample);
+  $("#sampleAgentFormBtn").addEventListener("click", fillSampleAgentForm);
+  $("#samplePolicyFormBtn").addEventListener("click", fillSamplePolicyForm);
   $("#sampleActionBtn").addEventListener("click", fillSample);
   $("#generateReportBtn").addEventListener("click", generateAuditReport);
   $("#copyReportBtn").addEventListener("click", copyReport);
