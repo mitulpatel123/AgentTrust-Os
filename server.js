@@ -16,8 +16,8 @@ const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
 const INTERACTIONS_FILE = path.join(__dirname, "data", "interactions.json");
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-const AI_EXPLANATIONS = process.env.AI_EXPLANATIONS === "true";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+const AI_EXPLANATIONS = process.env.AI_EXPLANATIONS === "true" || process.env.AI_MODE === "hybrid";
 
 app.use(cors());
 app.use(express.json({ limit: "200kb" }));
@@ -45,12 +45,19 @@ async function writeInteractions(interactions) {
   await fs.rename(tempFile, INTERACTIONS_FILE);
 }
 
-async function getGeminiExplanation(interaction) {
+async function getGeminiAnalysis(interaction) {
   if (!AI_EXPLANATIONS || !GEMINI_API_KEY) return null;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`;
-  const prompt = `You are TRUST OS, a concise AI governance judge for ShopEase Retail Co.
-Write one professional sentence explaining the fixed verdict below. Do not change the verdict, risk level, action, rules, facts, or ShopBot response. Do not provide legal advice.
+  const prompt = `You are the AI analysis component inside TRUST OS, a governance monitor for ShopEase Retail Co.
+Analyze the fixed compliance record below for a small-business manager. The deterministic policy engine has already made the final decision. Do not change, dispute, or recalculate the verdict, risk level, action, triggered rules, official facts, or ShopBot response. Do not provide legal advice.
+
+Return only valid JSON with exactly these string fields:
+{
+  "summary": "One concise sentence explaining the outcome",
+  "riskReasoning": "Two concise sentences connecting the customer intent and ShopBot response to the fixed verdict",
+  "recommendedFollowUp": "One practical next step for the business manager"
+}
 
 Customer query: ${interaction.query}
 ShopBot response: ${interaction.shopbotResponse}
@@ -67,14 +74,25 @@ Action: ${interaction.action}`;
     },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 120 }
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 280,
+        responseMimeType: "application/json"
+      }
     }),
     signal: AbortSignal.timeout(8000)
   });
 
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error?.message || `Gemini returned ${response.status}`);
-  return payload.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim() || null;
+  const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim();
+  if (!text) throw new Error("Gemini returned an empty analysis");
+  const parsed = JSON.parse(text.replace(/^```json\s*|\s*```$/g, ""));
+  const fields = ["summary", "riskReasoning", "recommendedFollowUp"];
+  if (!fields.every((field) => typeof parsed[field] === "string" && parsed[field].trim())) {
+    throw new Error("Gemini analysis did not match the required structure");
+  }
+  return Object.fromEntries(fields.map((field) => [field, parsed[field].trim()]));
 }
 
 function ruleViolationSummary(interactions) {
@@ -104,6 +122,9 @@ function buildAuditCsv(interactions) {
     "Risk Level",
     "Rules Violated",
     "Explanation",
+    "AI Analysis Source",
+    "AI Risk Reasoning",
+    "AI Recommended Follow-up",
     "Action Taken"
   ];
   const rows = interactions.map((item) => [
@@ -115,6 +136,9 @@ function buildAuditCsv(interactions) {
     item.riskLevel,
     (item.rulesViolated || []).map((rule) => `Rule ${rule.id}: ${rule.title}`),
     item.explanation,
+    `${item.aiProvider?.source || "Local fallback"}${item.aiProvider?.model ? ` (${item.aiProvider.model})` : ""}`,
+    item.aiAnalysis?.riskReasoning || "",
+    item.aiAnalysis?.recommendedFollowUp || "",
     item.action
   ]);
   return [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
@@ -133,7 +157,11 @@ app.get("/api/health", (_req, res) => {
     status: "ok",
     app: "Agent Trust OS",
     organization: database.company.name,
-    mode: AI_EXPLANATIONS && GEMINI_API_KEY ? "Rules + Gemini explanations" : "Deterministic demo"
+    mode: AI_EXPLANATIONS && GEMINI_API_KEY ? "Hybrid rules + Gemini analysis" : "Deterministic fallback",
+    gemini: {
+      enabled: Boolean(AI_EXPLANATIONS && GEMINI_API_KEY),
+      model: GEMINI_MODEL
+    }
   });
 });
 
@@ -152,7 +180,12 @@ app.get("/api/bootstrap", async (_req, res, next) => {
       scenarios,
       interactions,
       metrics: calculateMetrics(interactions),
-      ruleViolations: ruleViolationSummary(interactions)
+      ruleViolations: ruleViolationSummary(interactions),
+      ai: {
+        enabled: Boolean(AI_EXPLANATIONS && GEMINI_API_KEY),
+        model: GEMINI_MODEL,
+        role: "Management analysis and recommended follow-up"
+      }
     });
   } catch (error) {
     next(error);
@@ -189,10 +222,16 @@ app.post("/api/interactions", async (req, res, next) => {
 
     const interaction = evaluateInteraction(query, requester);
     try {
-      const enhanced = await getGeminiExplanation(interaction);
-      if (enhanced) interaction.explanation = enhanced;
+      const analysis = await getGeminiAnalysis(interaction);
+      if (analysis) {
+        interaction.aiAnalysis = analysis;
+        interaction.aiProvider = {
+          source: "Gemini",
+          model: GEMINI_MODEL
+        };
+      }
     } catch (error) {
-      console.warn(`Gemini explanation unavailable; deterministic result retained: ${error.message}`);
+      console.warn(`Gemini analysis unavailable; local fallback retained: ${error.message}`);
     }
 
     const interactions = await readInteractions();

@@ -202,6 +202,17 @@ textarea:focus-visible {
   color: #f4f4f4;
 }
 
+.ai-runtime {
+  margin: 10px 0 5px;
+  padding: 7px 8px;
+  border-left: 2px solid #78a9ff;
+  background: #262626;
+  color: #c6c6c6;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
 .system-state,
 .live-indicator {
   display: flex;
@@ -850,6 +861,74 @@ textarea:focus {
   border: 1px solid var(--border);
 }
 
+.ai-analysis-block {
+  margin: 16px 0;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--blue);
+  background: var(--surface-alt);
+}
+
+.ai-analysis-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ai-analysis-heading > div > span,
+.ai-analysis-content span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-faint);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.ai-analysis-heading strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.provider-badge {
+  max-width: 220px;
+  padding: 5px 7px;
+  border: 1px solid var(--border-strong);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.provider-badge.gemini {
+  border-color: var(--blue);
+  background: var(--surface);
+  color: var(--blue);
+}
+
+.provider-badge.fallback {
+  color: var(--text-soft);
+}
+
+.ai-analysis-content {
+  display: grid;
+  gap: 1px;
+  background: var(--border);
+}
+
+.ai-analysis-content > div {
+  padding: 11px 14px;
+  background: var(--surface);
+}
+
+.ai-analysis-content p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
 .rule-tags {
   display: flex;
   flex-wrap: wrap;
@@ -1376,6 +1455,16 @@ dialog p {
 
   .verdict-header {
     grid-template-columns: auto 1fr;
+  }
+
+  .ai-analysis-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .provider-badge {
+    max-width: 100%;
+    text-align: left;
   }
 
   .risk-label {

@@ -25,6 +25,8 @@ test("FAIL interactions keep a professional ShopBot response and escalation evid
   assert.match(result.action, /escalated/i);
   assert.ok(result.rulesViolated.some((rule) => rule.id === 8));
   assert.equal(result.checks.length, 7);
+  assert.equal(result.aiProvider.source, "Local fallback");
+  assert.match(result.aiAnalysis.recommendedFollowUp, /human reviewer/i);
 });
 
 test("ShopBot offers no more than two confirmed coupons", () => {

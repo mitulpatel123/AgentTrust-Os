@@ -24,7 +24,7 @@ Every interaction receives a `PASS`, `WARNING` or `FAIL` verdict and is stored a
 | WARNING | Medium | Competitor, discount negotiation or delivery-guarantee intent | Safe response allowed and alert sent |
 | FAIL | High | Privacy, security, internal-data, financial-action or manipulation attempt | Requested action blocked and escalated |
 
-The deterministic rules are the source of truth so the classroom demonstration remains consistent. Gemini can optionally rewrite the one-sentence explanation, but it cannot change the verdict, risk, ShopBot response, rules or action.
+The deterministic rules are the source of truth so the classroom demonstration remains consistent. Gemini generates the management analysis, risk reasoning and recommended follow-up, but it cannot change the verdict, risk, ShopBot response, rules or action. Every result identifies whether the analysis came from Gemini or the local fallback.
 
 ## Validated Scenarios
 
@@ -54,11 +54,11 @@ The application works without an AI API key. To enable optional Gemini explanati
 
 ```env
 GEMINI_API_KEY=your_key_here
-GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MODEL=gemini-3.5-flash
 AI_EXPLANATIONS=true
 ```
 
-Keep `AI_EXPLANATIONS=false` for the most reliable offline or classroom demonstration.
+When Gemini is unavailable, Agent Trust OS automatically uses a local analysis and completes the compliance record. Set `AI_EXPLANATIONS=false` only when a fully offline demonstration is required.
 
 ## VPS Deployment
 
@@ -77,7 +77,8 @@ Confirm `.env` contains:
 
 ```env
 PORT=3001
-AI_EXPLANATIONS=false
+GEMINI_MODEL=gemini-3.5-flash
+AI_EXPLANATIONS=true
 ```
 
 Nginx should proxy the Agent Trust OS domain or subdomain to:

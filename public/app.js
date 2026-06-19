@@ -11,6 +11,7 @@ const state = {
   interactions: [],
   metrics: { total: 0, compliant: 0, flagged: 0, blocked: 0, complianceRate: 100 },
   ruleViolations: [],
+  ai: { enabled: false, model: "gemini-3.5-flash" },
   activityFilter: "ALL",
   expandedId: null,
   dataTab: "products"
@@ -128,6 +129,13 @@ function renderResult(interaction) {
       <small>${escapeHtml(check.detail)}</small>
     </div>
   `).join("");
+  const analysis = interaction.aiAnalysis || {
+    summary: interaction.explanation,
+    riskReasoning: interaction.explanation,
+    recommendedFollowUp: "Retain this interaction in the audit log."
+  };
+  const provider = interaction.aiProvider || { source: "Local fallback", model: "Deterministic rules" };
+  const providerClass = provider.source === "Gemini" ? "gemini" : "fallback";
 
   $("#resultContent").innerHTML = `
     <div class="verdict-header">
@@ -141,7 +149,18 @@ function renderResult(interaction) {
     </div>
     <div class="transcript-block"><span>Customer query</span><p>${escapeHtml(interaction.query)}</p></div>
     <div class="transcript-block shopbot"><span>ShopBot response</span><p>${escapeHtml(interaction.shopbotResponse)}</p></div>
-    <div class="explanation-block"><span>TRUST OS explanation</span><p>${escapeHtml(interaction.explanation)}</p></div>
+    <div class="explanation-block"><span>Policy engine explanation</span><p>${escapeHtml(interaction.explanation)}</p></div>
+    <section class="ai-analysis-block">
+      <div class="ai-analysis-heading">
+        <div><span>AI-generated analysis</span><strong>Management review</strong></div>
+        <span class="provider-badge ${providerClass}">${escapeHtml(provider.source)}${provider.model ? ` / ${escapeHtml(provider.model)}` : ""}</span>
+      </div>
+      <div class="ai-analysis-content">
+        <div><span>Summary</span><p>${escapeHtml(analysis.summary)}</p></div>
+        <div><span>Risk reasoning</span><p>${escapeHtml(analysis.riskReasoning)}</p></div>
+        <div><span>Recommended follow-up</span><p>${escapeHtml(analysis.recommendedFollowUp)}</p></div>
+      </div>
+    </section>
     <div class="rules-block"><span>Rules triggered</span><div class="rule-tags">${rules}</div></div>
     <div class="checks-block"><span>Seven compliance checks</span><div class="check-list">${checks}</div></div>
     <div class="action-line"><strong>Action taken:</strong> ${escapeHtml(interaction.action)}</div>
@@ -288,6 +307,9 @@ function renderOfficialData() {
 }
 
 function renderAll() {
+  $("#aiRuntime").textContent = state.ai.enabled
+    ? `AI analysis: ${state.ai.model}`
+    : "AI analysis: local fallback";
   renderMetrics();
   renderRecent();
   renderActivity();
