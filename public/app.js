@@ -142,6 +142,11 @@ function renderResult(interaction) {
   };
   const provider = interaction.aiProvider || { source: "Local fallback", model: "Deterministic rules" };
   const providerClass = provider.source === "Gemini" ? "gemini" : "fallback";
+  const citations = (interaction.citations || []).map((citation) => `
+    <li><strong>[${escapeHtml(citation.id)}] ${escapeHtml(citation.title)}</strong><span>${escapeHtml(citation.content)}</span></li>
+  `).join("");
+  const telemetry = interaction.telemetry || {};
+  const telemetryText = `${Number(telemetry.latencyMs || 0).toFixed(2)} ms · ${telemetry.inputTokensEstimated || 0} input tokens · ${telemetry.outputTokensEstimated || 0} output tokens · $${Number(telemetry.estimatedCostUsd || 0).toFixed(6)}`;
 
   $("#resultContent").innerHTML = `
     <div class="verdict-header">
@@ -165,6 +170,9 @@ function renderResult(interaction) {
         <div><span>Summary</span><p>${escapeHtml(analysis.summary)}</p></div>
         <div><span>Risk reasoning</span><p>${escapeHtml(analysis.riskReasoning)}</p></div>
         <div><span>Recommended follow-up</span><p>${escapeHtml(analysis.recommendedFollowUp)}</p></div>
+        <div><span>Traceable evidence</span><ul class="citation-list">${citations || "<li>No citations recorded for this legacy interaction.</li>"}</ul></div>
+        <div><span>Latency and cost</span><p class="telemetry-line">${escapeHtml(telemetryText)}</p></div>
+        <div><span>Human approval state</span><p>${escapeHtml(interaction.approvalStatus || (interaction.reviewRequired ? "Pending human review" : "Not required"))}</p></div>
       </div>
     </section>
     <div class="rules-block"><span>Rules triggered</span><div class="rule-tags">${rules}</div></div>
@@ -199,6 +207,10 @@ function detailDrawer(item) {
     ? `${item.review.decision} by ${item.review.reviewer} on ${formatDate(item.review.decidedAt)}${item.review.notes ? ` - ${item.review.notes}` : ""}`
     : item.reviewRequired ? "Pending human review" : "Not required";
   const provider = `${item.aiProvider?.source || "Local fallback"}${item.aiProvider?.model ? ` / ${item.aiProvider.model}` : ""}`;
+  const citations = item.citations?.length
+    ? item.citations.map((citation) => `[${citation.id}] ${citation.title}`).join("; ")
+    : "None recorded";
+  const telemetry = item.telemetry || {};
   return `
     <tr class="detail-row">
       <td colspan="6">
@@ -208,6 +220,8 @@ function detailDrawer(item) {
           <div><h3>TRUST OS explanation</h3><p>${escapeHtml(item.explanation)}</p></div>
           <div><h3>Rules triggered</h3><p>${escapeHtml(rules)}</p></div>
           <div><h3>AI analysis source</h3><p>${escapeHtml(provider)}</p></div>
+          <div><h3>Evidence citations</h3><p>${escapeHtml(citations)}</p></div>
+          <div><h3>Latency / estimated cost</h3><p>${escapeHtml(`${Number(telemetry.latencyMs || 0).toFixed(2)} ms / $${Number(telemetry.estimatedCostUsd || 0).toFixed(6)}`)}</p></div>
           <div><h3>Human review</h3><p>${escapeHtml(review)}</p></div>
           <div class="full-span"><h3>Action taken</h3><p>${escapeHtml(item.action)}</p></div>
         </div>

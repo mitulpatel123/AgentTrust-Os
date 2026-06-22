@@ -32,6 +32,10 @@ test("final-exam MVP API supports input, review, feedback and exports", async ()
     const created = await createResponse.json();
     assert.equal(created.interaction.verdict, "FAIL");
     assert.equal(created.interaction.reviewRequired, true);
+    assert.equal(created.interaction.approvalStatus, "Pending human review");
+    assert.ok(created.interaction.citations.some((citation) => citation.id === "rule-3"));
+    assert.ok(created.interaction.telemetry.latencyMs >= 0);
+    assert.equal(created.interaction.telemetry.estimatedCostUsd, 0);
     assert.equal(created.metrics.pendingReview, 1);
 
     const reviewResponse = await fetch(`${baseUrl}/api/interactions/${created.interaction.id}/review`, {
@@ -46,6 +50,7 @@ test("final-exam MVP API supports input, review, feedback and exports", async ()
     assert.equal(reviewResponse.status, 200);
     const reviewed = await reviewResponse.json();
     assert.equal(reviewed.interaction.review.decision, "Confirmed Block");
+    assert.equal(reviewed.interaction.approvalStatus, "Human decision recorded");
     assert.equal(reviewed.metrics.pendingReview, 0);
 
     const feedbackResponse = await fetch(`${baseUrl}/api/feedback`, {
@@ -71,6 +76,8 @@ test("final-exam MVP API supports input, review, feedback and exports", async ()
     const auditCsv = await (await fetch(`${baseUrl}/api/audit.csv`)).text();
     assert.match(auditCsv, /Human Review Decision/);
     assert.match(auditCsv, /Confirmed Block/);
+    assert.match(auditCsv, /Evidence Citations/);
+    assert.match(auditCsv, /rule-3/);
     const feedbackCsv = await (await fetch(`${baseUrl}/api/feedback.csv`)).text();
     assert.match(feedbackCsv, /Usefulness Rating/);
     const promptCsv = await (await fetch(`${baseUrl}/api/prompts.csv`)).text();
