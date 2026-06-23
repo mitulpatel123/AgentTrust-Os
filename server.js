@@ -10,6 +10,7 @@ const {
   evaluateInteraction,
   calculateMetrics
 } = require("./lib/governance");
+const { validateCitationIds } = require("./lib/evidence");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -19,6 +20,8 @@ const FEEDBACK_FILE = path.join(__dirname, "data", "feedback.json");
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
 const AI_EXPLANATIONS = process.env.AI_EXPLANATIONS === "true" || process.env.AI_MODE === "hybrid";
+const GEMINI_INPUT_USD_PER_MILLION = Number(process.env.GEMINI_INPUT_USD_PER_MILLION) || 0;
+const GEMINI_OUTPUT_USD_PER_MILLION = Number(process.env.GEMINI_OUTPUT_USD_PER_MILLION) || 0;
 
 app.use(cors());
 app.use(express.json({ limit: "200kb" }));
@@ -75,14 +78,18 @@ async function getGeminiAnalysis(interaction) {
   if (!AI_EXPLANATIONS || !GEMINI_API_KEY) return null;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`;
+  const evidenceBlock = interaction.evidence
+    .map((item) => `[${item.id}] ${item.title}: ${item.content}`)
+    .join("\n");
   const prompt = `You are the AI analysis component inside TRUST OS, a governance monitor for ShopEase Retail Co.
 Analyze the fixed compliance record below for a small-business manager. The deterministic policy engine has already made the final decision. Do not change, dispute, or recalculate the verdict, risk level, action, triggered rules, official facts, or ShopBot response. Do not provide legal advice.
 
-Return only valid JSON with exactly these string fields:
+Use only the supplied evidence. Cite evidence by its exact bracketed ID. Return only valid JSON with this structure:
 {
   "summary": "One concise sentence explaining the outcome",
   "riskReasoning": "Two concise sentences connecting the customer intent and ShopBot response to the fixed verdict",
-  "recommendedFollowUp": "One practical next step for the business manager"
+  "recommendedFollowUp": "One practical next step for the business manager",
+  "citationIds": ["one or more supplied evidence IDs"]
 }
 
 Customer query: ${interaction.query}
@@ -90,7 +97,10 @@ ShopBot response: ${interaction.shopbotResponse}
 Verdict: ${interaction.verdict}
 Risk: ${interaction.riskLevel}
 Rules: ${interaction.rulesViolated.map((rule) => `${rule.id}: ${rule.title}`).join(", ") || "None"}
-Action: ${interaction.action}`;
+Action: ${interaction.action}
+
+Official evidence:
+${evidenceBlock}`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -118,7 +128,26 @@ Action: ${interaction.action}`;
   if (!fields.every((field) => typeof parsed[field] === "string" && parsed[field].trim())) {
     throw new Error("Gemini analysis did not match the required structure");
   }
-  return Object.fromEntries(fields.map((field) => [field, parsed[field].trim()]));
+  const citationIds = validateCitationIds(parsed.citationIds, interaction.evidence);
+  if (!citationIds.length) throw new Error("Gemini analysis did not cite supplied evidence");
+  const inputTokensEstimated = Math.ceil(prompt.length / 4);
+  const outputTokensEstimated = Math.ceil(text.length / 4);
+  const estimatedCostUsd = (
+    inputTokensEstimated * GEMINI_INPUT_USD_PER_MILLION
+    + outputTokensEstimated * GEMINI_OUTPUT_USD_PER_MILLION
+  ) / 1_000_000;
+  return {
+    analysis: Object.fromEntries(fields.map((field) => [field, parsed[field].trim()])),
+    citationIds,
+    telemetry: {
+      inputTokensEstimated,
+      outputTokensEstimated,
+      estimatedCostUsd: Number(estimatedCostUsd.toFixed(6)),
+      costBasis: GEMINI_INPUT_USD_PER_MILLION || GEMINI_OUTPUT_USD_PER_MILLION
+        ? "Configured per-million-token rates"
+        : "Rates not configured; token estimates recorded"
+    }
+  };
 }
 
 function ruleViolationSummary(interactions) {
@@ -151,6 +180,9 @@ function buildAuditCsv(interactions) {
     "AI Analysis Source",
     "AI Risk Reasoning",
     "AI Recommended Follow-up",
+    "Evidence Citations",
+    "AI Latency (ms)",
+    "Estimated AI Cost (USD)",
     "Human Review Decision",
     "Human Reviewer",
     "Human Review Notes",
@@ -168,6 +200,9 @@ function buildAuditCsv(interactions) {
     `${item.aiProvider?.source || "Local fallback"}${item.aiProvider?.model ? ` (${item.aiProvider.model})` : ""}`,
     item.aiAnalysis?.riskReasoning || "",
     item.aiAnalysis?.recommendedFollowUp || "",
+    (item.citations || []).map((citation) => `${citation.id}: ${citation.title}`),
+    item.telemetry?.latencyMs ?? "",
+    item.telemetry?.estimatedCostUsd ?? "",
     item.review?.decision || (item.reviewRequired ? "Pending review" : "Not required"),
     item.review?.reviewer || "",
     item.review?.notes || "",
@@ -193,7 +228,8 @@ app.get("/api/health", (_req, res) => {
     gemini: {
       enabled: Boolean(AI_EXPLANATIONS && GEMINI_API_KEY),
       model: GEMINI_MODEL
-    }
+    },
+    retrieval: "Local lexical retrieval with validated evidence IDs"
   });
 });
 
@@ -220,7 +256,10 @@ app.get("/api/bootstrap", async (_req, res, next) => {
       ai: {
         enabled: Boolean(AI_EXPLANATIONS && GEMINI_API_KEY),
         model: GEMINI_MODEL,
-        role: "Management analysis and recommended follow-up"
+        role: "Evidence-grounded management analysis and recommended follow-up",
+        retrieval: "Local lexical retrieval",
+        citationsRequired: true,
+        telemetry: ["latencyMs", "inputTokensEstimated", "outputTokensEstimated", "estimatedCostUsd"]
       }
     });
   } catch (error) {
@@ -243,6 +282,7 @@ app.get("/api/interactions", async (_req, res, next) => {
 
 app.post("/api/interactions", async (req, res, next) => {
   try {
+    const startedAt = process.hrtime.bigint();
     const query = String(req.body.query || "").trim();
     const requester = String(req.body.requester || "Demo Customer").trim();
     if (!query) {
@@ -258,18 +298,24 @@ app.post("/api/interactions", async (req, res, next) => {
 
     const interaction = evaluateInteraction(query, requester);
     try {
-      const analysis = await getGeminiAnalysis(interaction);
-      if (analysis) {
-        interaction.aiAnalysis = analysis;
+      const result = await getGeminiAnalysis(interaction);
+      if (result) {
+        interaction.aiAnalysis = result.analysis;
+        interaction.citations = interaction.evidence.filter((item) => result.citationIds.includes(item.id));
         interaction.aiProvider = {
           source: "Gemini",
           model: GEMINI_MODEL
+        };
+        interaction.telemetry = {
+          ...interaction.telemetry,
+          ...result.telemetry
         };
       }
     } catch (error) {
       console.warn(`Gemini analysis unavailable; local fallback retained: ${error.message}`);
     }
 
+    interaction.telemetry.latencyMs = Number((Number(process.hrtime.bigint() - startedAt) / 1_000_000).toFixed(2));
     const interactions = await readInteractions();
     interactions.unshift(interaction);
     const retained = interactions.slice(0, 1000);
@@ -321,7 +367,8 @@ app.patch("/api/interactions/:id/review", async (req, res, next) => {
         reviewer,
         notes,
         decidedAt: new Date().toISOString()
-      }
+      },
+      approvalStatus: decision === "Approved Exception" ? "Exception approved" : "Human decision recorded"
     };
     await writeInteractions(interactions);
     res.json({

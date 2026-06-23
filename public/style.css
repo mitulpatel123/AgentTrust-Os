@@ -929,6 +929,39 @@ textarea:focus {
   font-size: 12px;
 }
 
+.citation-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.citation-list li {
+  display: grid;
+  gap: 2px;
+  padding-left: 10px;
+  border-left: 2px solid var(--blue);
+  font-size: 11px;
+}
+
+.citation-list strong {
+  color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 500;
+}
+
+.citation-list span,
+.telemetry-line {
+  color: var(--text-soft);
+}
+
+.citation-list span {
+  margin: 0;
+  font-size: 11px;
+  text-transform: none;
+}
+
 .rule-tags {
   display: flex;
   flex-wrap: wrap;

@@ -52,8 +52,9 @@
     "architecture": [
       "Customer submits a query",
       "ShopBot creates a database-grounded response",
+      "Local retrieval selects traceable official evidence",
       "Deterministic controls assign the final verdict and risk",
-      "Gemini generates management analysis when available",
+      "Gemini generates citation-validated management analysis when available",
       "A human reviews WARNING and FAIL records",
       "The interaction and decision are retained for audit"
     ],

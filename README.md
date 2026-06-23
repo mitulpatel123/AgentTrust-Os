@@ -7,7 +7,25 @@ The application uses a two-agent workflow:
 - **ShopBot** answers customer questions using official ShopEase products, policies, delivery details and offers.
 - **TRUST OS** evaluates the customer intent and ShopBot response against 12 organization rules.
 
-Every interaction receives a `PASS`, `WARNING` or `FAIL` verdict and is stored as audit evidence.
+Every interaction receives a `PASS`, `WARNING` or `FAIL` verdict and is stored as audit evidence. The analysis layer retrieves official ShopEase evidence, exposes traceable citations, records latency and estimated cost, and preserves a human approval state.
+
+## Evidence-Grounded Analysis
+
+The application uses a compact retrieval-augmented analysis flow:
+
+1. Official products, policies, delivery terms, offers, support paths and governance rules are converted into evidence records with stable IDs.
+2. Local lexical retrieval selects the five most relevant records and force-includes every triggered governance rule.
+3. The deterministic engine creates the verdict and safe response.
+4. Optional Gemini analysis receives only the retrieved evidence and must return valid evidence IDs.
+5. Invented citation IDs are rejected; the local fallback remains available without an API key.
+6. WARNING and FAIL outcomes remain pending until a named human records a decision.
+
+Each interaction records retrieval evidence, displayed citations, end-to-end latency, estimated input/output tokens and estimated API cost. Token rates are intentionally configurable rather than hard-coded:
+
+```env
+GEMINI_INPUT_USD_PER_MILLION=0
+GEMINI_OUTPUT_USD_PER_MILLION=0
+```
 
 ## Main Views
 
@@ -42,6 +60,14 @@ Run the tests with:
 ```bash
 npm test
 ```
+
+Run the reproducible retrieval and governance evaluation with:
+
+```bash
+npm run evaluate
+```
+
+The evaluation dataset covers routine questions, sensitive-data requests, competitor pressure, delivery promises and prompt injection. It reports verdict accuracy, evidence recall@5, p50/p95 local latency and local execution cost.
 
 The automated suite also validates human review, feedback persistence and all CSV exports.
 
@@ -99,6 +125,17 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
+## Container
+
+Build and run the non-root production image:
+
+```bash
+docker build -t agenttrust-os .
+docker run --rm -p 3000:3000 --env-file .env agenttrust-os
+```
+
+GitHub Actions runs the test suite, evaluation, and high-severity dependency audit on Node.js 20 and 22.
+
 ## API
 
 - `GET /api/health`
@@ -119,6 +156,9 @@ sudo systemctl reload nginx
 data/shopease.json        Official ShopEase grounding data and rules
 data/interactions.json    Persistent audit evidence
 lib/governance.js         ShopBot response and TRUST OS verdict engine
+lib/evidence.js           Evidence index, retrieval and citation validation
+evaluation/               Versioned evaluation cases
+scripts/evaluate.js       Reproducible accuracy, recall, latency and cost report
 public/                   Dashboard interface
 test/governance.test.js   Validated scenario suite
 server.js                 Express API and persistence
